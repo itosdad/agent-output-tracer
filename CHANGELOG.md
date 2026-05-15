@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Phase B-4: `diff` command. Two-way asymmetric report on a session:
+  paths the user mentioned in any prompt that the agent never touched,
+  and paths the agent touched whose full path or basename never appears
+  in any user prompt. Basename-aware matching (user says `foo.md` →
+  agent reads `/proj/foo.md` is counted as served; user says `log.py`
+  → agent reads `/proj/dialog.py` is still flagged as unprompted).
+  11 unit + 3 CLI integration tests. 232 total pass.
 - Phase B-3: `why` command. Identifies a target event by `--path` /
   `--tool` / `--ts` / `--event-index` and surfaces (a) the three events
   immediately before, (b) the most-recent user_prompt prior, and

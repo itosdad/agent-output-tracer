@@ -92,6 +92,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print the most-recent session id.",
     )
 
+    # diff
+    p_diff = subparsers.add_parser(
+        "diff",
+        help="Asymmetric diff: user mentions vs agent touches.",
+    )
+    p_diff.add_argument("--session", required=True)
+
     # why
     p_why = subparsers.add_parser(
         "why",
@@ -207,6 +214,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             latest_command(data_dir=args.data_dir, stream=sys.stdout)
         except SessionSpecNotFound as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        return 0
+
+    if args.cmd == "diff":
+        from core.session_io import SessionNotFoundError
+        from core.session_resolver import (
+            AmbiguousSessionSpec,
+            SessionSpecNotFound,
+            resolve_session_id,
+        )
+        from query.diff import diff
+
+        try:
+            resolved = resolve_session_id(args.session, data_dir=args.data_dir)
+            diff(resolved, data_dir=args.data_dir, stream=sys.stdout)
+        except (SessionNotFoundError, SessionSpecNotFound, AmbiguousSessionSpec) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
         return 0
