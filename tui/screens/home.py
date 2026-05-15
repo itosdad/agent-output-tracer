@@ -55,7 +55,7 @@ class HomeScreen(AOTScreen):
         yield OptionList(
             _menu_item("sessions", "Sessions", "browse captured sessions"),
             _menu_item("find", "Find", "anomaly vocabulary detection"),
-            _menu_item("trace", "Trace", "causal trail for an output phrase", available=False),
+            _menu_item("trace", "Trace", "causal trail for an output phrase"),
             _menu_item("search", "Search", "full-text across sessions", available=False),
             _menu_item("stats", "Stats", "session metrics"),
             _menu_item("doctor", "Doctor", "self-diagnostic"),
@@ -97,6 +97,11 @@ class HomeScreen(AOTScreen):
             from tui.screens.find import FindScreen
 
             self.app.push_screen(FindScreen())
+            return
+        if key == "trace":
+            from tui.screens.trace import TraceScreen
+
+            self.app.push_screen(TraceScreen())
             return
         # Phase 2 routes still pending — beep until wired.
         self.app.bell()

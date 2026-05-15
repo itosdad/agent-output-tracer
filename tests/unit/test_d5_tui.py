@@ -380,6 +380,61 @@ async def test_enter_on_event_row_drills_into_event_detail(plugin_data_dir):
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
+async def test_home_drills_into_trace_then_results(plugin_data_dir):
+    """Home → Trace → type phrase → enter → TraceResults."""
+    from textual.widgets import Input, OptionList, Static
+
+    from core.recorder import append_event
+    from tui.app import AOTApp
+
+    base = {
+        "v": 1,
+        "engine": "claude-code",
+        "session_id": "trace-001",
+        "cwd": "/p",
+        "tool_name": None,
+        "tool_input": None,
+        "tool_response": None,
+        "agent_response_text": None,
+        "user_prompt_text": None,
+        "stop_reason": None,
+        "paths": [],
+        "command": None,
+        "result_bytes": 0,
+        "raw_event": {},
+    }
+    append_event(
+        {
+            **base,
+            "event_type": "agent_response",
+            "ts": "2026-05-15T10:00:01.000+00:00",
+            "agent_response_text": "I checked the hooks_wiring setup",
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        ol = app.screen.query_one(OptionList)
+        ol.highlighted = 2  # Trace
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "TraceScreen"
+
+        inp = app.screen.query_one(Input)
+        inp.value = "hooks_wiring"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "TraceResultsScreen"
+
+        body = app.screen.query_one("#trace-body", Static)
+        text = str(body.content)
+        assert "First mention" in text
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
 async def test_home_drills_into_find_then_results_then_event(plugin_data_dir):
     """Full Phase 2.C path: Home → Find → vocab pick → FindResults →
     Enter on a match → EventDetail."""

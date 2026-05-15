@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.3] — 2026-05-15 — Phase 2.D: Trace screen
+
+### Added
+
+- **Trace screen** (Home → Trace) — input-driven phrase tracer. The
+  screen places an Input as the focal element, ↑/↓ recall recent
+  phrases from a process-local ring buffer (config-persisted recall
+  is Phase 3).
+- **TraceResults screen** renders the structured `query.trace.trace()`
+  output: first-mention event, last user prompt before, every prior
+  Read with `✓ contains` / `✗ does not contain`, and a `⚠
+  hallucination candidate` banner when nothing grounded the phrase.
+  Enter opens the source event's Event Detail.
+
 ## [0.9.2] — 2026-05-15 — Phase 2.C: Find screen
 
 ### Added
@@ -567,6 +581,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.9.3]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.3
 [0.9.2]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.2
 [0.9.1]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.1
 [0.9.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.0
