@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] — 2026-05-15
+
+Phase B-2 through B-5 — the high-value forensic commands. `trace` /
+`why` / `diff` / `mentioned-but-not-read` ship together. 246 tests
+pass on Python 3.13; hook runtime still 3.9-compatible.
 
 ### Added
 
@@ -131,4 +135,5 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.2.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.2.0
 [0.1.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.1.0

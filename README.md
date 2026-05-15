@@ -15,12 +15,13 @@ decide when something needs investigation).
 
 ## Status
 
-**Phase A** (v0.1.0) — Claude Code capture pipeline is feature-complete and
-under continuous test. Headline commands `replay`, `list`, `latest`, `grep`,
-and `state-at` ship. Codex support and richer forensic commands (`trace`,
-`why`, `diff`, `mentioned-but-not-read`, `causal-graph`) land in Phases B/C.
+**v0.2.0** — Phase A capture pipeline + Phase B-2..B-5 forensic query
+suite. Headline commands `replay`, `list`, `latest`, `grep`, `state-at`,
+`trace`, `why`, `diff`, `mentioned-but-not-read` all ship. Codex support
+and remaining Phase B items (`causal-graph`, anomaly hints, etc.) land
+later.
 
-182 tests pass on macOS / Python 3.13; hook runtime verified under
+246 tests pass on macOS / Python 3.13; hook runtime verified under
 `/usr/bin/python3` (Python 3.9) so it works on every Mac.
 
 See [`docs/DESIGN.md`](docs/DESIGN.md) for the full design and
