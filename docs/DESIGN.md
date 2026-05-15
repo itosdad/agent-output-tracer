@@ -1498,11 +1498,11 @@ def test_capture_overhead():
 
 | 項目 | 解消手段 | 状態 |
 |---|---|---|
-| Claude Code `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` の実 path | Phase A-1 実機 verify | 未 |
-| Claude Code PostToolUse `tool_response` の Read 結果フォーマット | Phase A-3 実機 verify | 未 |
-| Claude Code Stop hook `response_text` の completeness | Phase A-4 実機 verify | 未 |
-| Claude Code UserPromptSubmit event field | Phase A-4 実機 verify | 未 |
-| Claude Code SessionEnd event の field | Phase A-3 実機 verify | 未 |
+| Claude Code `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` の実 path | Phase A-1 実機 verify | **✓ 完了** (2026-05-15、dev mode で `~/.claude/plugins/data/agent-output-tracer-inline/` を実測。永続 install での suffix 有無は Phase A-11 で再 verify) |
+| Claude Code PostToolUse `tool_response` の Read 結果フォーマット | Phase A-3 実機 verify | **✓ 完了** (dict 型 `{"type":"text","file":{...}}`、付録 A.4 反映) |
+| Claude Code Stop hook `response_text` の completeness | Phase A-4 実機 verify | **✓ 完了** (実 field 名は `last_assistant_message`、`stop_reason` は非到来、付録 A.5 反映) |
+| Claude Code UserPromptSubmit event field | Phase A-4 実機 verify | **✓ 完了** (実 field 名は `prompt`、付録 A.2 反映) |
+| Claude Code SessionEnd event の field | Phase A-3 実機 verify | **✓ 完了** (`reason` field あり、付録 A.6 反映。`SessionEnd` 単独 fire の可能性も観測) |
 | Codex hook 仕様 | Phase C-0 公式 docs | **完了**（2026-05-14〜15、§3.2 に反映）|
 | Codex `session_id` の format（UUID v4 or 独自）| Phase C-1 実機 verify | 未 |
 | Codex native plugin data env var（`${CLAUDE_PLUGIN_ROOT}` 相当）| Phase C-4 実機 verify | 未 |
@@ -1553,71 +1553,124 @@ def test_capture_overhead():
 
 ---
 
-# 付録 A: Claude Code hook event schema
+# 付録 A: Claude Code hook event schema（実機 verify 済、2026-05-15）
 
-公式 docs より（https://code.claude.com/docs/en/hooks.md）：
+実 event capture から確認した形（公式 docs の "想定 field" 名が一部実機と違っていたため、本付録は **実機 dump をベース** に書き換えてある。verify 元: `~/.claude/plugins/data/agent-output-tracer-inline/sessions/<UUID>/events.jsonl` で観測した raw_event）。
 
-## UserPromptSubmit
+## A.1 共通 field
+
+すべての hook で以下が来る:
 
 ```json
 {
-  "session_id": "abc123",
-  "transcript_path": "...",
-  "cwd": "...",
-  "hook_event_name": "UserPromptSubmit",
-  "user_prompt": "..."  // 想定 field、Phase A-1 で verify
+  "session_id": "ba640ad4-5982-4601-8bed-69164fd10851",   // UUID v4
+  "transcript_path": "/Users/.../.claude/projects/-Users-...-<project-slug>/<session_id>.jsonl",
+  "cwd": "/Users/...",                                       // absolute path
+  "hook_event_name": "UserPromptSubmit|PreToolUse|PostToolUse|Stop|SessionEnd"
 }
 ```
 
-## PreToolUse
+`permission_mode` は **turn-scoped hook (PreToolUse / PostToolUse / Stop) のみ** で来る (`"default"` 等)。SessionEnd には来ない。
+
+## A.2 UserPromptSubmit
 
 ```json
 {
-  "session_id": "abc123",
-  "transcript_path": "...",
-  "cwd": "...",
+  ...common,
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "..."                                           // ← Codex と同じ field 名
+}
+```
+
+**重要**: 公式 docs での想定は `user_prompt` だったが、実 event は `prompt`。本 plugin の adapter は両方対応している（`user_prompt` → `prompt` fallback）。
+
+## A.3 PreToolUse
+
+```json
+{
+  ...common,
   "permission_mode": "default",
   "hook_event_name": "PreToolUse",
-  "tool_name": "Read",
+  "tool_name": "Read|Glob|Grep|Edit|Write|MultiEdit|Bash",
   "tool_input": {
-    "file_path": "/path/..."
-  }
+    "file_path": "/path/..."                                // Read/Write/Edit/MultiEdit
+    // または "pattern": "...", "path": "..."               // Glob/Grep
+    // または "command": "...", "description": "..."        // Bash
+  },
+  "tool_use_id": "toolu_01EibVnnMzShRvxNPTPieM8y"           // ← 公式 docs に未記載
 }
 ```
 
-## PostToolUse
+`tool_use_id` は Claude API の tool_use block id。本 plugin は raw_event に保持するのみで Phase A では未活用。Phase B の `trace` / `why` で pre↔post 厳密紐付けに利用できる。
+
+## A.4 PostToolUse
 
 ```json
 {
-  "session_id": "abc123",
+  ...common,
+  "permission_mode": "default",
+  "hook_event_name": "PostToolUse",
   "tool_name": "Read",
-  "tool_input": {...},
-  "tool_response": "..."  // 実機で format verify
+  "tool_input": {...},                                       // PreToolUse と同じ
+  "tool_response": {                                         // ← **dict 型** (string ではない)
+    "type": "text",
+    "file": {
+      "filePath": "/path/...",
+      "content": "...",
+      "numLines": 92,
+      "startLine": 1,
+      "totalLines": 92
+    }
+    // Bash の場合は {"stdout": "...", "stderr": "...", "interrupted": bool,
+    //                "isImage": bool, "noOutputExpected": bool}
+  },
+  "tool_use_id": "toolu_01...",                              // PreToolUse と同 id
+  "duration_ms": 24                                          // ← 公式 docs に未記載
 }
 ```
 
-## Stop
+`tool_response` は **dict** で来るため、本 plugin の `_coerce_response` で `json.dumps` 化してから記録する（downstream grep / index で string として扱えるように）。`duration_ms` は Phase B の anomaly hint (long-running tool 検知) で活用予定。
+
+## A.5 Stop
 
 ```json
 {
-  "session_id": "abc123",
-  "transcript_path": "...",
+  ...common,
+  "permission_mode": "default",
   "hook_event_name": "Stop",
-  "stop_reason": "end_turn|tool_use|max_tokens",
-  "response_text": "..."
+  "stop_hook_active": false,                                 // ← bool。"Stop hook が現在 active か"
+  "last_assistant_message": "..."                            // ← Codex と同じ field 名
 }
 ```
 
-## SessionEnd
+**重要**: 公式 docs での想定は `response_text` / `stop_reason: "end_turn|tool_use|max_tokens"` だったが、実 event は `last_assistant_message` で、`stop_reason` は**来ない**。代わりに `stop_hook_active: bool` が来る（plugin が直接活用する意味は薄い）。本 plugin の adapter は `response_text` → `last_assistant_message` fallback で動作。`stop_reason` は normalized event 上で常に None。
+
+## A.6 SessionEnd
 
 ```json
 {
-  "session_id": "abc123",
-  "transcript_path": "...",
-  "cwd": "...",
-  "hook_event_name": "SessionEnd"
+  ...common (session_id, transcript_path, cwd, hook_event_name),
+  "hook_event_name": "SessionEnd",
+  "reason": "prompt_input_exit"                              // ← 公式 docs に未記載
 }
 ```
+
+`reason` は session 終了種別。実機観測値:
+- `"prompt_input_exit"` — `/exit` 等の正常終了
+- （他に `"clear"`, `"logout"` 等がありそうだが Phase A では未観測。Phase B で追加 verify）
+
+注意: **`SessionEnd` だけが単独で fire することがある** — `hooks/hooks.json` の load 失敗時、その他 hook (UserPromptSubmit / PreTool / PostTool / Stop) は発火しないが、SessionEnd は `/exit` で fire するケースを観測（events.jsonl に 1 行だけ残る空 session）。Claude Code の plugin loader が hook ごとに独立判定している可能性。
+
+---
+
+# 付録 A.7: dev mode (`--plugin-dir`) 固有の挙動
+
+実機 verify 済の挙動:
+
+- **data dir 名に `-inline` suffix が付く**: `~/.claude/plugins/data/agent-output-tracer-inline/`（永続 install では suffix なしになるはずだが Phase A-11 で実機再 verify）
+- **`${CLAUDE_PLUGIN_DATA}` 解決パス**: `~/.claude/plugins/data/<plugin_name>[-inline]/`
+- **session_id format**: UUID v4 (`ba640ad4-5982-4601-8bed-69164fd10851`) — Codex 側との互換考慮では「string とだけ仮定」が正しいまま
+- **transcript_path 命名**: `~/.claude/projects/<cwd を slash→hyphen 変換した slug>/<session_id>.jsonl`
 
 ---
 

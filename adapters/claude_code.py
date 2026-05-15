@@ -127,9 +127,13 @@ def normalize_event(
     out = _build_base(raw, event_type, ts)
 
     if event_type == "user_prompt":
+        # Claude Code's actual UserPromptSubmit field is "prompt" (matches
+        # Codex). Older public docs / our initial draft of the design used
+        # "user_prompt"; we accept both so the adapter survives any future
+        # surface change.
         text = raw.get("user_prompt")
         if not isinstance(text, str):
-            text = raw.get("prompt")  # Codex-style fallback (forgiving)
+            text = raw.get("prompt")
         if isinstance(text, str):
             out["user_prompt_text"] = text
 
@@ -159,9 +163,14 @@ def normalize_event(
                 out["command"] = cmd
 
     elif event_type == "agent_response":
+        # Claude Code's actual Stop event uses `last_assistant_message`
+        # (matches Codex), not `response_text` as the design draft assumed.
+        # Accept both. Claude Code does not emit `stop_reason`; it emits
+        # `stop_hook_active: bool` instead, which is metadata about the
+        # hook itself (not a useful event-level reason), so we ignore it.
         text = raw.get("response_text")
         if not isinstance(text, str):
-            text = raw.get("last_assistant_message")  # Codex-style fallback
+            text = raw.get("last_assistant_message")
         if isinstance(text, str):
             out["agent_response_text"] = text
         stop_reason = raw.get("stop_reason")

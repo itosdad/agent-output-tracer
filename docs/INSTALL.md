@@ -38,24 +38,49 @@ claude --plugin-dir ~/work/agent-output-tracer
 
 ### 4. Verify
 
-Start a Claude Code session that triggers at least one tool call, then check
-the plugin data directory:
+Start a Claude Code session that triggers at least one tool call, exit it
+with `/exit`, then locate the captured events:
 
 ```bash
-# In Claude Code's resolved plugin data dir:
-ls "$CLAUDE_PLUGIN_DATA/" 2>/dev/null || \
-  echo "Look under ~/.claude/plugins/data/agent-output-tracer/ (or similar)"
-
-cat "$CLAUDE_PLUGIN_DATA/_install_verify.jsonl" | head -3
+find ~/.claude -name 'events.jsonl' 2>/dev/null
 ```
 
-You should see one line per hook fire (UserPromptSubmit / PreToolUse /
-PostToolUse / Stop / SessionEnd) with `session_id`, `hook_event_name`, and the
-resolved `plugin_root_env` / `plugin_data_env`.
+You should see one path per session, e.g.:
 
-**Phase A-1 behavior**: the plugin only writes `_install_verify.jsonl`. Real
-session recording lands in Phase A-3. The verify file is what confirms the
-hook plumbing is connected.
+```
+~/.claude/plugins/data/agent-output-tracer/sessions/<UUID>/events.jsonl
+```
+
+The directory above `sessions/` is your `${CLAUDE_PLUGIN_DATA}`. Pass it to
+the CLI:
+
+```bash
+export CLAUDE_PLUGIN_DATA=~/.claude/plugins/data/agent-output-tracer
+agent-output-tracer list
+agent-output-tracer replay --session latest
+```
+
+The `replay` timeline should show your prompt, the tool calls it triggered
+(with byte counts), the agent's response, and a `[session_end]` marker.
+
+#### Dev mode caveat (`--plugin-dir`)
+
+When the plugin is loaded via `claude --plugin-dir <path>` rather than
+installed, the data directory name has an `-inline` suffix:
+
+```
+~/.claude/plugins/data/agent-output-tracer-inline/sessions/<UUID>/
+```
+
+This is a Claude Code convention to keep dev-mode runs separate from
+installed-plugin runs. Same schema inside; only the directory name differs.
+
+#### Session id format
+
+Session ids are Claude Code-issued UUID v4 strings, e.g.
+`ba640ad4-5982-4601-8bed-69164fd10851`. The CLI accepts the full id, a unique
+prefix of ≥4 chars (`agent-output-tracer replay --session ba64`), or shortcuts
+like `latest` / `latest-N` / `YYYY-MM-DD`.
 
 ### 5. Uninstall / disable
 
