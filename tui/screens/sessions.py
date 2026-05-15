@@ -44,11 +44,10 @@ class SessionsScreen(AOTScreen):
     def footer_hints(self) -> list[tuple[str, str]]:
         return [
             ("↑↓", "select"),
+            ("g/G", "top/bot"),
             ("enter", "open"),
             ("r", "refresh"),
             ("esc", "back"),
-            (":", "command"),
-            ("?", "help"),
         ]
 
     def compose_body(self):

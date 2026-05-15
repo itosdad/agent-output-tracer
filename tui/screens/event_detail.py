@@ -68,12 +68,13 @@ class EventDetailScreen(AOTScreen):
         # Keep this row narrow — half-desktop layouts can be as tight
         # as 72 cols, and a 1-row footer that wraps looks broken.
         # Less-essential hints (`y` yank, `n` note) are still bound,
-        # just not advertised here.
+        # just not advertised here. g/G scroll the static-detail body.
         return [
-            ("↑↓", "step"),
+            ("↑↓/jk", "step"),
+            ("g/G", "top/bot"),
             ("r", "raw"),
             ("s", "safe"),
-            ("enter", "related"),
+            ("enter", "rel"),
             ("esc", "back"),
         ]
 

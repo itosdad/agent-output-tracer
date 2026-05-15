@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-05-15
+
+### Added
+
+- **vim-style top/bottom jump on every list and scroll view.**
+  `g` / `Home` → first row, `G` / `End` → last row. Universal — wired
+  on the `AOTScreen` base class so every screen inherits it. The
+  handler dispatches on the focused widget type so OptionLists,
+  DataTables, and ScrollableContainers all respond correctly. Footer
+  hints on Home / Sessions / Timeline / EventDetail now advertise
+  `g/G top/bot` so the binding is discoverable.
+
 ## [0.8.0] — 2026-05-15
 
 Half-desktop UI/UX optimisation: the TUI now fits a 72-column viewport
@@ -504,6 +516,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.8.1]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.8.1
 [0.8.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.8.0
 [0.7.2]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.7.2
 [0.7.1]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.7.1

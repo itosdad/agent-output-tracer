@@ -45,6 +45,10 @@ class AOTScreen(Screen):
         Binding("question_mark", "noop_help", "help", show=False),
         Binding("colon", "noop_palette", "palette", show=False),
         Binding("t", "noop_theme", "theme", show=False),
+        # vim-style + Home/End jump to top / bottom of the focused
+        # list or scrollable container. Universal across every screen.
+        Binding("g,home", "jump_top", "top", show=False),
+        Binding("G,end", "jump_bottom", "bottom", show=False),
     ]
 
     TITLE: str = "screen"
@@ -89,6 +93,55 @@ class AOTScreen(Screen):
             self.app.bell()
             return
         self.app.pop_screen()
+
+    def action_jump_top(self) -> None:
+        """`g` / `Home` — jump to the first row of the focused list,
+        or scroll the focused container to the top."""
+        self._jump(to_bottom=False)
+
+    def action_jump_bottom(self) -> None:
+        """`G` / `End` — jump to the last row of the focused list, or
+        scroll the focused container to the bottom."""
+        self._jump(to_bottom=True)
+
+    def _jump(self, *, to_bottom: bool) -> None:
+        # Lazy imports so the router stays cheap to import.
+        from textual.containers import ScrollableContainer
+        from textual.widgets import DataTable, OptionList
+
+        target = self.focused
+        if target is None:
+            self.app.bell()
+            return
+        if isinstance(target, OptionList):
+            if target.option_count == 0:
+                self.app.bell()
+                return
+            target.highlighted = (target.option_count - 1) if to_bottom else 0
+            return
+        if isinstance(target, DataTable):
+            if target.row_count == 0:
+                self.app.bell()
+                return
+            target.move_cursor(row=(target.row_count - 1) if to_bottom else 0)
+            return
+        if isinstance(target, ScrollableContainer):
+            if to_bottom:
+                target.scroll_end(animate=False)
+            else:
+                target.scroll_home(animate=False)
+            return
+        # Fall back to scroll_home/end on whatever the focused widget is.
+        method = "scroll_end" if to_bottom else "scroll_home"
+        fn = getattr(target, method, None)
+        if callable(fn):
+            try:
+                fn(animate=False)
+                return
+            except TypeError:
+                fn()
+                return
+        self.app.bell()
 
     # ---- placeholders for phase 2 / 3 actions ----
 

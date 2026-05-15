@@ -44,8 +44,9 @@ class HomeScreen(AOTScreen):
     def footer_hints(self) -> list[tuple[str, str]]:
         return [
             ("↑↓", "select"),
+            ("g/G", "top/bot"),
             ("enter", "open"),
-            (":", "command"),
+            (":", "cmd"),
             ("?", "help"),
             ("q", "quit"),
         ]

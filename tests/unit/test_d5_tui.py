@@ -380,6 +380,69 @@ async def test_enter_on_event_row_drills_into_event_detail(plugin_data_dir):
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
+async def test_g_G_jump_top_and_bottom(plugin_data_dir):
+    """vim-style top/bottom jumps on the focused list:
+    `g` (or Home) → first row, `G` (or End) → last row."""
+    from textual.widgets import OptionList
+
+    from core.recorder import append_event
+    from tui.app import AOTApp
+
+    # 10 events so first ≠ last.
+    for i in range(10):
+        append_event(
+            {
+                "v": 1,
+                "engine": "claude-code",
+                "event_type": "user_prompt",
+                "session_id": "jump-001",
+                "ts": f"2026-05-15T10:00:0{i}.000+00:00",
+                "cwd": "/p",
+                "user_prompt_text": f"event {i}",
+                "tool_name": None,
+                "tool_input": None,
+                "tool_response": None,
+                "agent_response_text": None,
+                "stop_reason": None,
+                "paths": [],
+                "command": None,
+                "result_bytes": 0,
+                "raw_event": {},
+            },
+            data_dir=plugin_data_dir,
+        )
+
+    app = AOTApp("jump-001", data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "TimelineScreen"
+        ol = app.screen.query_one(OptionList)
+        # Initially highlighted on row 0 by _reload.
+        assert ol.highlighted == 0
+
+        # G → bottom
+        await pilot.press("G")
+        await pilot.pause()
+        assert ol.highlighted == ol.option_count - 1
+
+        # g → top
+        await pilot.press("g")
+        await pilot.pause()
+        assert ol.highlighted == 0
+
+        # End → bottom (alternate keybind)
+        await pilot.press("end")
+        await pilot.pause()
+        assert ol.highlighted == ol.option_count - 1
+
+        # Home → top (alternate keybind)
+        await pilot.press("home")
+        await pilot.pause()
+        assert ol.highlighted == 0
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
 async def test_no_horizontal_overflow_at_half_desktop_width(plugin_data_dir):
     """The TUI must fit a 72-column viewport (the realistic minimum for
     a typical half-desktop terminal pane) without producing a

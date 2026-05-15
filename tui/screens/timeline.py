@@ -71,10 +71,10 @@ class TimelineScreen(AOTScreen):
 
     def footer_hints(self) -> list[tuple[str, str]]:
         return [
-            ("↑↓", "scroll"),
+            ("↑↓", "step"),
+            ("g/G", "top/bot"),
             ("enter", "detail"),
-            ("o", "follow" if not self._follow else "stop follow"),
-            ("/", "search"),
+            ("o", "follow" if not self._follow else "stop"),
             ("esc", "back"),
         ]
 
