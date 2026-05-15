@@ -284,8 +284,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_tui.add_argument(
         "--session",
-        default="latest",
-        help="Initial session spec (default 'latest').",
+        default=None,
+        help=(
+            "Optional initial session spec. When omitted, the TUI lands "
+            "on the Home screen. When provided (id, prefix, or 'latest'), "
+            "drills directly into that session's timeline; Esc still "
+            "navigates back to Home."
+        ),
     )
 
     # export (D-7 safe-share)

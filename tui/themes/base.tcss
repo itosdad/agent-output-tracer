@@ -1,0 +1,35 @@
+/* Layout-only, theme-agnostic CSS for the aot TUI.
+ *
+ * Color tokens are intentionally absent here. They live in the
+ * engine-specific theme files (`codex.tcss`, `claude.tcss`) which
+ * are loaded alongside this one. Edit only structural rules here:
+ * padding, alignment, dock direction, sizing.
+ *
+ * IMPORTANT: do NOT redefine Textual's standard color variables
+ * here either — Textual's own default CSS relies on them.
+ */
+
+AOTScreen {
+    layout: vertical;
+}
+
+AOTScreen > Breadcrumb {
+    dock: top;
+    height: 1;
+}
+
+AOTScreen > FooterHints {
+    dock: bottom;
+    height: 1;
+}
+
+StatusBar {
+    dock: bottom;
+    height: 1;
+}
+
+AOTScreen > .body {
+    height: 1fr;
+    width: 100%;
+    padding: 1 2;
+}

@@ -1,0 +1,57 @@
+/* Codex CLI theme — source-verified from openai/codex (Rust workspace
+ * codex-rs/tui/) commit c03cea4 (2026-05-15).
+ *
+ * Cited tokens (from source code, not branding):
+ *   accent (dark bg):       Cyan + BOLD              tui/src/style.rs:44
+ *   accent (light bg):      RGB(0,95,135) + BOLD     tui/src/style.rs:9,42
+ *   diff add fg:            Green                    tui/src/diff_render.rs:1231
+ *   diff del fg:            Red                      tui/src/diff_render.rs:1243
+ *   user prefix:            `›` bold dim             tui/src/history_cell/messages.rs:170
+ *   tool detail prefix:     `  └ `                   tui/src/status_indicator_widget.rs:35
+ *   quote gutter:           `  │ `                   tui/src/insert_history.rs:634
+ *
+ * Codex is deliberately borderless prose — borders appear only on
+ * onboarding/modal/markdown table surfaces. We honour that here:
+ * top-level chrome uses backgrounds and color rules, not boxes.
+ *
+ * IMPORTANT: We do NOT redefine Textual's standard color tokens
+ * ($accent, $surface, $panel, …). Doing so corrupts Textual's
+ * internal default CSS (e.g. `Screen.-maximized-view`'s `hatch: right
+ * $panel`). Style our own widget classes by id/type instead.
+ */
+
+Breadcrumb {
+    color: cyan;
+    text-style: bold;
+}
+
+FooterHints {
+    color: $text-muted;
+}
+
+StatusBar {
+    color: $text-muted;
+}
+
+#home-list {
+    border: none;
+    padding: 0;
+}
+
+#sessions-table,
+#timeline-table {
+    border: none;
+}
+
+#event-detail {
+    padding: 0 1;
+}
+
+InlinePrompt {
+    background: $surface;
+}
+
+InlinePrompt > Static.prompt-label {
+    color: cyan;
+    text-style: bold;
+}
