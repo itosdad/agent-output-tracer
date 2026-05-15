@@ -569,10 +569,11 @@ normalized_event = {
     "ai-observability",
     "claude-code",
     "trace"
-  ],
-  "hooks": "./hooks/hooks.json"
+  ]
 }
 ```
+
+**`hooks` field を書いてはいけない**: Claude Code は `<plugin_root>/hooks/hooks.json` を自動 load する。`plugin.json` に `"hooks": "./hooks/hooks.json"` を明示すると "Duplicate hooks file detected" エラーで読み込み失敗する。`hooks` field は **標準位置以外の追加 hook ファイル**を参照する時にだけ使う（実機 verify 済、2026-05-15 dev mode 起動時に判明）。Codex 側も同じ規約と想定（Phase C で再 verify）。
 
 ## 4.2 `hooks/hooks.json` の例
 

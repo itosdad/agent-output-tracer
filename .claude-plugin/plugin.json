@@ -12,6 +12,5 @@
     "ai-observability",
     "claude-code",
     "trace"
-  ],
-  "hooks": "./hooks/hooks.json"
+  ]
 }

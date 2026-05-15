@@ -12,6 +12,5 @@
     "ai-observability",
     "codex",
     "trace"
-  ],
-  "hooks": "./hooks/hooks.json"
+  ]
 }
