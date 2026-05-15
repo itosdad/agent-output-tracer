@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Phase B-2: `trace` command. Given `--session <spec> --output <phrase>`,
+  finds the first `agent_response` containing the phrase, walks back
+  through prior events, classifies each prior Read by whether its
+  `tool_response` contains the phrase, and flags
+  `hallucination_candidate` when no user prompt nor Read source can
+  explain where the phrase came from. CLI exit codes: 0 grounded /
+  not-found, 3 hallucination candidate (so scripts can branch). 13 new
+  unit tests + 5 CLI integration tests. 200 total pass.
+
 ## [0.1.0] — 2026-05-15
 
 Phase A milestone: Claude Code capture pipeline + the headline forensic

@@ -92,6 +92,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print the most-recent session id.",
     )
 
+    # trace
+    p_trace = subparsers.add_parser(
+        "trace",
+        help="Reverse-lookup an output phrase to its causal trail.",
+    )
+    p_trace.add_argument("--session", required=True)
+    p_trace.add_argument(
+        "--output",
+        required=True,
+        help=(
+            "Phrase to trace. The command finds the first agent_response "
+            "containing it and walks back through prior events."
+        ),
+    )
+
     # state-at
     p_state = subparsers.add_parser(
         "state-at",
@@ -176,6 +191,32 @@ def main(argv: Sequence[str] | None = None) -> int:
         except SessionSpecNotFound as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
+        return 0
+
+    if args.cmd == "trace":
+        from core.session_io import SessionNotFoundError
+        from core.session_resolver import (
+            AmbiguousSessionSpec,
+            SessionSpecNotFound,
+            resolve_session_id,
+        )
+        from query.trace import trace
+
+        try:
+            resolved = resolve_session_id(args.session, data_dir=args.data_dir)
+            result = trace(
+                resolved,
+                args.output,
+                data_dir=args.data_dir,
+                stream=sys.stdout,
+            )
+        except (SessionNotFoundError, SessionSpecNotFound, AmbiguousSessionSpec) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        # Exit code: 0 if traced (found mention OR confirmed absence),
+        # 3 if hallucination candidate flagged (so scripts can branch).
+        if result.get("hallucination_candidate"):
+            return 3
         return 0
 
     if args.cmd == "state-at":
