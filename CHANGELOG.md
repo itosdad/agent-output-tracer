@@ -55,3 +55,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   event recursively (tool_input, raw_event, paths). Recorder wires
   redaction in by default; `redact=False` is available for tests.
   98 total pass.
+- Phase A-6: `replay` command — the headline forensic capability.
+  `core/session_io.py` (`load_events` / `load_metadata` / `list_sessions`,
+  silently skips corrupt JSONL lines, rejects unsafe session_id),
+  `core/time_utils.py` (short_time / long_time / human_bytes /
+  truncate), `query/replay.py` (text / json / markdown formats, header
+  with counters, per-event timeline rendering with tool name, paths,
+  Bash command, and human-readable byte counts), and `cli/main.py`
+  argparse entry exposed as the `agent-output-tracer` console script.
+  e2e demo (5 hooks → recorder → replay) verified under macOS system
+  Python 3.9.6 + dev venv. 128 total pass.
