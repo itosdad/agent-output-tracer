@@ -1368,6 +1368,137 @@ async def test_sessions_row_F_opens_find_for_that_session(plugin_data_dir):
         assert app.screen.session_id == "find-scope-001"
 
 
+# ---- Phase 3.D: visual polish ----
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_statusbar_reflects_timeline_session_and_count(plugin_data_dir):
+    """The persistent StatusBar must mirror what the Timeline screen
+    is actually rendering: session id (short), engine, event count.
+    Before Phase 3.D the bar was a Phase 1 stub — never updated."""
+    from core.recorder import append_event
+    from tui.app import AOTApp
+    from tui.widgets.status_bar import StatusBar
+
+    for i in range(3):
+        append_event(
+            {
+                "v": 1,
+                "engine": "claude-code",
+                "event_type": "user_prompt",
+                "session_id": "statusbar-001",
+                "ts": f"2026-05-15T10:00:0{i}.000+00:00",
+                "cwd": "/p",
+                "user_prompt_text": f"e{i}",
+                "tool_name": None,
+                "tool_input": None,
+                "tool_response": None,
+                "agent_response_text": None,
+                "stop_reason": None,
+                "paths": [],
+                "command": None,
+                "result_bytes": 0,
+                "raw_event": {},
+            },
+            data_dir=plugin_data_dir,
+        )
+
+    app = AOTApp("statusbar-001", data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "TimelineScreen"
+        bar = app.query_one(StatusBar)
+        assert bar.event_count == 3
+        assert bar.engine == "claude-code"
+        assert bar.session_short.startswith("statusb")
+        # Not in follow mode until `o` is pressed.
+        assert bar.follow is False
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_statusbar_shimmer_toggles_on_follow(plugin_data_dir):
+    """Pressing `o` flips StatusBar.follow True; the shimmer timer is
+    resumed, so manually ticking it must flip `_shimmer_on` and the
+    rendered glyph alternates between `●` and `○`."""
+    from core.recorder import append_event
+    from tui.app import AOTApp
+    from tui.widgets.status_bar import StatusBar
+
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",
+            "event_type": "user_prompt",
+            "session_id": "shimmer-001",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp("shimmer-001", data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(StatusBar)
+        assert bar.follow is False
+        rendered_before = bar.render().plain
+        assert "○ static" in rendered_before
+
+        await pilot.press("o")
+        await pilot.pause()
+        assert bar.follow is True
+        assert "live" in bar.render().plain
+        # Tick the shimmer manually — the rendered glyph must flip.
+        initial = bar._shimmer_on
+        bar._tick_shimmer()
+        assert bar._shimmer_on is not initial
+
+        # `o` again stops follow; bar reverts to the static glyph.
+        await pilot.press("o")
+        await pilot.pause()
+        assert bar.follow is False
+        assert "○ static" in bar.render().plain
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_empty_state_microcopy_is_actionable(plugin_data_dir):
+    """When Sessions has no rows, the empty card must point users at
+    the action that recovers them (running a tool call / `aot doctor`).
+    A bare '(no sessions captured yet)' is a dead end and that's what
+    Phase 3.D removes."""
+    from textual.widgets import OptionList
+
+    from tui.app import AOTApp
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "SessionsScreen"
+        ol = app.screen.query_one(OptionList)
+        assert ol.option_count == 1
+        first_opt = ol.get_option_at_index(0)
+        rendered = first_opt.prompt
+        text = rendered.plain if hasattr(rendered, "plain") else str(rendered)
+        assert "no sessions" in text
+        # Actionable hint — the user knows what to do next.
+        assert "aot doctor" in text
+
+
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
 async def test_sessions_row_T_opens_timeline_for_that_session(plugin_data_dir):

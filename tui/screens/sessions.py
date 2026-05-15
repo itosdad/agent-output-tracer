@@ -155,7 +155,18 @@ class SessionsScreen(AOTScreen):
         except Exception:
             sessions = []
         if not sessions:
-            ol.add_option(Option(Text("(no sessions captured yet)", style="dim")))
+            empty = Text()
+            empty.append("(no sessions captured yet)\n", style="dim")
+            empty.append(
+                "   Run a tool call in Claude Code or Codex with the\n",
+                style="dim",
+            )
+            empty.append("   aot plugin active — events land in ", style="dim")
+            empty.append("data_dir/sessions/", style="dim italic")
+            empty.append(".\n   Try ", style="dim")
+            empty.append("aot doctor", style="bold")
+            empty.append(" if you expected sessions here.", style="dim")
+            ol.add_option(Option(empty))
             return
         for i, meta in enumerate(sessions):
             sid = meta.get("session_id") or "?"

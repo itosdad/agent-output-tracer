@@ -152,7 +152,16 @@ class SearchResultsScreen(AOTScreen):
                     self._matches.append((i, {"field": field, "text": text, "ev": ev}))
 
         if not self._matches:
-            ol.add_option(Option(Text("(no matches)", style="dim")))
+            empty = Text()
+            empty.append(f"(no matches for /{self.pattern}/)\n", style="dim")
+            empty.append("   Python `re` syntax: ", style="dim")
+            empty.append("|", style="bold")
+            empty.append(" alternation, ", style="dim")
+            empty.append("(?i)", style="bold")
+            empty.append(" case-insensitive, ", style="dim")
+            empty.append("\\b", style="bold")
+            empty.append(" word boundary.", style="dim")
+            ol.add_option(Option(empty))
             return
 
         # Same caveat as FindResults: many matches can share one

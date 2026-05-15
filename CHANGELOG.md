@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-05-16 — Phase 3.D: Visual polish (closes Phase 3)
+
+### Added
+
+- **Shimmer indicator** on the StatusBar `live` segment. While the
+  Timeline is in follow mode, the glyph pulses between `●` (bright
+  green) and `○` (dim green) every 700ms via a Textual interval
+  timer that's paused when follow is off. Calm enough to live in
+  peripheral vision, visible enough to confirm the tail is alive.
+- **StatusBar wired to the Timeline screen.** The bar was a Phase 1
+  stub that never updated — it now reflects the session id,
+  engine, event count, and follow state of whatever Timeline is
+  currently rendered, via a new `_update_status_bar()` helper
+  invoked on every `_reload()` and follow toggle.
+- **Actionable empty states** replace the dead-end one-liners:
+  - Sessions empty: "(no sessions captured yet)" now points at
+    `aot doctor` and the trigger conditions (any tool call under
+    Claude Code / Codex with the plugin active).
+  - Timeline empty: explains the metadata-but-no-events case and
+    points at `aot doctor` for hooks-wiring diagnosis.
+  - Find empty: re-frames "no matches" as the healthy outcome and
+    suggests `esc` to try a different vocab.
+  - Search empty: shows a quick `re` syntax reminder (`|`, `(?i)`,
+    `\b`) so the user can iterate on the pattern in place.
+
+### Tests
+
+- 3 new Pilot / unit tests:
+  - StatusBar reflects the Timeline's session / engine / event count
+  - `o` flips follow on the bar, shimmer ticks alternate the glyph
+  - Sessions empty state contains an `aot doctor` hint
+
 ## [0.12.0] — 2026-05-16 — Phase 3.C: Session-scoped sub-actions
 
 ### Added

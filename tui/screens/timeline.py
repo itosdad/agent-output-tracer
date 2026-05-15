@@ -160,6 +160,7 @@ class TimelineScreen(AOTScreen):
             self.query_one(FooterHints).set_hints(self.footer_hints())
         except Exception:
             pass
+        self._update_status_bar()
 
     def on_unmount(self) -> None:
         # Drilling away or quitting must shut the polling thread down,
@@ -247,7 +248,16 @@ class TimelineScreen(AOTScreen):
             events = []
         self._events = events
         if not events:
-            ol.add_option(Option(Text("(no events recorded)", style="dim")))
+            empty = Text()
+            empty.append("(no events recorded for this session)\n", style="dim")
+            empty.append("   The session's metadata.json exists but events.jsonl\n", style="dim")
+            empty.append(
+                "   is empty — likely a recording aborted before any\n   tool call fired. Try ",
+                style="dim",
+            )
+            empty.append("aot doctor", style="bold")
+            empty.append(" to diagnose hooks wiring.", style="dim")
+            ol.add_option(Option(empty))
             return
         term = self._search_term.lower()
         added = 0
@@ -262,6 +272,27 @@ class TimelineScreen(AOTScreen):
         # on first focus.
         if added > 0:
             ol.highlighted = 0
+        self._update_status_bar()
+
+    def _update_status_bar(self) -> None:
+        """Push session id / engine / event count / follow state to the
+        App-level StatusBar so the chrome reflects what this screen is
+        actually showing. Best-effort — failure to find the StatusBar
+        must not crash a timeline reload."""
+        try:
+            from core.session_io import load_metadata
+            from tui.widgets.status_bar import StatusBar
+
+            meta = load_metadata(self.session_id, data_dir=self._data_dir) or {}
+            bar = self.app.query_one(StatusBar)
+            bar.update_state(
+                engine=meta.get("engine") or "—",
+                follow=self._follow,
+                event_count=len(self._events),
+                session_short=self.session_id[:8] if self.session_id else "",
+            )
+        except Exception:
+            pass
 
 
 def _render_event(ev: dict) -> Text:

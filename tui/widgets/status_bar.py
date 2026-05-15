@@ -28,6 +28,20 @@ class StatusBar(Widget):
         self.follow: bool = False
         self.event_count: int = 0
         self.session_short: str = ""
+        # Shimmer state for the live indicator: toggles `●` ↔ `○`
+        # while `follow` is on, driven by a Textual interval timer
+        # mounted in `on_mount`. Static when follow is off.
+        self._shimmer_on: bool = True
+        self._shimmer_timer = None
+
+    def on_mount(self) -> None:
+        # 700ms interval gives a calm pulse without feeling jittery.
+        # The timer is paused when no follow target is active.
+        self._shimmer_timer = self.set_interval(0.7, self._tick_shimmer, pause=True)
+
+    def _tick_shimmer(self) -> None:
+        self._shimmer_on = not self._shimmer_on
+        self.refresh()
 
     def update_state(
         self,
@@ -41,6 +55,14 @@ class StatusBar(Widget):
             self.engine = engine
         if follow is not None:
             self.follow = follow
+            # Drive the shimmer only when we're actually tailing.
+            timer = self._shimmer_timer
+            if timer is not None:
+                if follow:
+                    self._shimmer_on = True
+                    timer.resume()
+                else:
+                    timer.pause()
         if event_count is not None:
             self.event_count = event_count
         if session_short is not None:
@@ -57,10 +79,15 @@ class StatusBar(Widget):
         text.append("  ·  ", style="dim")
         text.append(f"events={self.event_count}")
         text.append("  ·  ", style="dim")
-        text.append(
-            "● live" if self.follow else "○ static",
-            style="bold green" if self.follow else "dim",
-        )
+        if self.follow:
+            # Shimmer between `●` (filled, bright) and `○` (hollow,
+            # dim) — eye catches the pulse without the bar being
+            # visually noisy.
+            glyph = "●" if self._shimmer_on else "○"
+            style = "bold green" if self._shimmer_on else "green"
+            text.append(f"{glyph} live", style=style)
+        else:
+            text.append("○ static", style="dim")
         text.append("  ·  ", style="dim")
         text.append(datetime.now().strftime("%H:%M"), style="dim")
         return text

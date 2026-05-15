@@ -149,9 +149,16 @@ class FindResultsScreen(AOTScreen):
         except Exception:
             pass
         if not self._matches:
-            ol.add_option(
-                Option(Text(f"(no matches for '{self.vocab}' in this session)", style="dim"))
+            empty = Text()
+            empty.append(f"(no matches for '{self.vocab}' in this session)\n", style="dim")
+            empty.append(
+                "   This is the healthy outcome — the detector ran and\n",
+                style="dim",
             )
+            empty.append("   nothing tripped it. Press ", style="dim")
+            empty.append("esc", style="bold")
+            empty.append(" to try a different vocab.", style="dim")
+            ol.add_option(Option(empty))
             return
         # OptionList enforces unique ids. Several hallucinations matches
         # can share the same `event_idx` (one agent_response, many tokens
