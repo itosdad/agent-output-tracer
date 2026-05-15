@@ -221,6 +221,30 @@ def test_inline_prompt_history_recall():
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
+async def test_esc_on_home_is_noop_not_freeze(plugin_data_dir):
+    """Regression: pressing Esc on Home must NOT pop the screen stack.
+
+    Textual's default empty Screen sits at stack index 0; if we pop
+    Home (stack index 1), that default empty Screen takes the viewport
+    with no widgets, no bindings, no breadcrumb — and the user
+    experiences a frozen TUI. v0.7.1 shipped with this bug.
+    """
+    from tui.app import AOTApp
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "HomeScreen"
+        depth_before = len(app.screen_stack)
+        await pilot.press("escape")
+        await pilot.pause()
+        # Stack depth must not shrink and Home must stay on top.
+        assert len(app.screen_stack) == depth_before
+        assert app.screen.__class__.__name__ == "HomeScreen"
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
 async def test_navigation_home_to_sessions_to_back(plugin_data_dir):
     """Home → Enter (drill to Sessions) → Esc (back to Home).
 

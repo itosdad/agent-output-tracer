@@ -40,7 +40,7 @@ class AOTScreen(Screen):
     """
 
     BINDINGS = [
-        Binding("escape", "app.pop_screen", "back", show=False),
+        Binding("escape", "safe_back", "back", show=False),
         Binding("q", "app.quit", "quit", show=False),
         Binding("question_mark", "noop_help", "help", show=False),
         Binding("colon", "noop_palette", "palette", show=False),
@@ -48,6 +48,12 @@ class AOTScreen(Screen):
     ]
 
     TITLE: str = "screen"
+
+    # Subclasses representing the root of the screen stack (= Home)
+    # set this to True so Esc becomes a no-op there. Popping the root
+    # exposes Textual's default empty Screen and the app appears
+    # frozen to the user.
+    IS_ROOT: bool = False
 
     # ---- subclass hooks ----
 
@@ -69,6 +75,20 @@ class AOTScreen(Screen):
         yield Breadcrumb(self.breadcrumb_segments())
         yield Container(*self.compose_body(), classes="body")
         yield FooterHints(self.footer_hints())
+
+    # ---- universal navigation ----
+
+    def action_safe_back(self) -> None:
+        """Esc handler — pop unless we're already at the root.
+
+        Without this guard, pressing Esc on Home would call
+        `app.pop_screen()` and expose Textual's default empty Screen
+        below it, leaving the app visually frozen and unresponsive.
+        """
+        if self.IS_ROOT:
+            self.app.bell()
+            return
+        self.app.pop_screen()
 
     # ---- placeholders for phase 2 / 3 actions ----
 

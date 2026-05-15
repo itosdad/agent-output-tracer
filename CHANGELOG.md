@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-05-15
+
+### Fixed
+
+- **Esc on the Home screen froze the TUI.** Textual's default empty
+  Screen sits at stack index 0; HomeScreen was at index 1. Pressing
+  Esc on Home unconditionally called `app.pop_screen()`, exposing
+  that empty default Screen with no widgets, no bindings, no
+  breadcrumb — the TUI looked alive but rejected every keystroke
+  (the user could only kill it from outside).
+  Fixed by introducing `AOTScreen.IS_ROOT` and a guarded
+  `action_safe_back` that no-ops with a bell when called on a root
+  screen. `HomeScreen` sets `IS_ROOT = True`. Regression test pins it.
+
 ## [0.7.1] — 2026-05-15
 
 Two Phase 1 TUI bugs that shipped in v0.7.0:
@@ -443,6 +457,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.7.2]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.7.2
 [0.7.1]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.7.1
 [0.7.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.7.0
 [0.6.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.6.0

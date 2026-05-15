@@ -32,6 +32,7 @@ def _menu_item(key: str, name: str, desc: str, available: bool = True) -> Option
 
 class HomeScreen(AOTScreen):
     TITLE = "home"
+    IS_ROOT = True  # Esc on Home is a no-op — see AOTScreen.action_safe_back.
 
     BINDINGS = [
         Binding("enter", "select", "open", show=False),
