@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-05-16 — Phase 3.A: Engine-aware theme system
+
+### Added
+
+- **Two custom Textual themes**, registered on app mount:
+  - `aot-codex` — cyan accent. Sourced from openai/codex Rust TUI
+    (`codex-rs/tui/src/style.rs` uses `Color::Cyan + BOLD` as primary
+    accent against the terminal default background).
+  - `aot-claude` — salmon/rust accent. β-flavored from Anthropic's
+    `#CC785C` brand colour. Claude Code itself ships without a
+    documented colour spec, so this is an inspired approximation,
+    not a one-for-one clone.
+- **Auto-detect on launch.** `AOTApp._initial_theme_name()` reads the
+  newest captured session's `engine` field and picks the matching
+  theme. A developer who lives in Claude Code opens `aot tui` and
+  immediately sees the salmon accent without pressing `t`. Falls
+  back to Codex (cyan) for unknown / empty engines or when no
+  session has been captured yet — cyan is safer across the variety
+  of terminal palettes most people run.
+- **`t` cycles themes.** The `t` binding on `AOTScreen` was a
+  placeholder in Phase 1; it now toggles between `aot-codex` and
+  `aot-claude` via `tui.themes.next_theme()` and emits a 1-second
+  toast notification confirming the active theme.
+- **Timeline auto-syncs theme to session engine.** When you drill
+  into a session's timeline, `_sync_theme_to_engine()` reads the
+  session's metadata and switches the active theme to match — so
+  jumping between a Claude Code session and a Codex session in the
+  same `aot tui` run swaps the accent automatically.
+- **Theme-aware chrome.** `StatusBar`, `FooterHints`, and
+  `Breadcrumb` widgets now read the accent colour from
+  `app.current_theme.accent` at render time instead of using a
+  hardcoded "bold cyan" Rich style. Cycling themes immediately
+  re-tints the breadcrumb / status engine name / footer keybind
+  hints without any manual refresh.
+
+### Tests
+
+- 5 new Pilot tests in `tests/unit/test_d5_tui.py` covering:
+  - `theme_for_engine()` and `next_theme()` helper logic
+  - Claude-engine session auto-detect to `aot-claude`
+  - Codex-engine session auto-detect to `aot-codex`
+  - `t` press cycles between the two themes
+  - Drilling into a claude-code session swaps to `aot-claude`
+    even if the app started on Codex
+
 ## [0.9.8] — 2026-05-15 — Phase 2 bug-fix sweep
 
 ### Fixed

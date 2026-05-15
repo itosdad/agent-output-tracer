@@ -178,4 +178,16 @@ class AOTScreen(Screen):
         self.app.push_screen(CommandPalette(data_dir=data_dir))
 
     def action_noop_theme(self) -> None:
-        self.app.bell()
+        """`t` — cycle through the registered engine themes."""
+        from tui.themes import next_theme
+
+        try:
+            self.app.theme = next_theme(self.app.theme)
+            self.app.notify(
+                f"theme: {self.app.theme}",
+                severity="information",
+                title="aot",
+                timeout=1,
+            )
+        except Exception:
+            self.app.bell()

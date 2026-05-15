@@ -22,10 +22,12 @@ from pathlib import Path
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 
+from core.session_io import list_sessions
 from core.session_resolver import resolve_session_id
 from tui.screens.home import HomeScreen
 from tui.screens.sessions import SessionsScreen
 from tui.screens.timeline import TimelineScreen, _render_row  # noqa: F401 — re-export
+from tui.themes import CLAUDE_THEME, CODEX_THEME, theme_for_engine
 from tui.widgets.status_bar import StatusBar
 
 _THEMES_DIR = Path(__file__).resolve().parent / "themes"
@@ -59,6 +61,11 @@ class AOTApp(App):
         yield StatusBar()
 
     def on_mount(self) -> None:
+        # Register both engine themes and pick the right initial one.
+        self.register_theme(CODEX_THEME)
+        self.register_theme(CLAUDE_THEME)
+        self.theme = self._initial_theme_name()
+
         # Always start at Home so users learn navigation. If --session
         # was provided, drill into the appropriate Timeline on top of
         # Home + Sessions so back-stack is correct.
@@ -70,6 +77,18 @@ class AOTApp(App):
             except Exception:
                 resolved = self._initial_session
             self.push_screen(TimelineScreen(resolved, data_dir=self._data_dir))
+
+    def _initial_theme_name(self) -> str:
+        """Pick a starting theme based on the most recently captured
+        session's engine, so a developer who lives in Claude Code
+        opens the TUI and immediately sees the salmon accent without
+        having to press `t`."""
+        try:
+            sessions = list_sessions(data_dir=self._data_dir)
+        except Exception:
+            sessions = []
+        engine = (sessions[0].get("engine") if sessions else None) or ""
+        return theme_for_engine(engine)
 
 
 # ------------- entry point -------------

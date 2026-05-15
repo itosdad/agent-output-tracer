@@ -198,6 +198,21 @@ class TimelineScreen(AOTScreen):
         # Phase 2 will mount an InlinePrompt; for now beep.
         self.app.bell()
 
+    def _sync_theme_to_engine(self) -> None:
+        """Match the active Textual theme to the session's `engine`
+        field. Best-effort — we don't want a stale metadata read to
+        propagate as a UI exception."""
+        try:
+            from core.session_io import load_metadata
+            from tui.themes import theme_for_engine
+
+            meta = load_metadata(self.session_id, data_dir=self._data_dir) or {}
+            wanted = theme_for_engine(meta.get("engine"))
+            if self.app.theme != wanted:
+                self.app.theme = wanted
+        except Exception:
+            pass
+
     def _resolve_session(self) -> str:
         """Resolve 'latest' / prefix → concrete id."""
         if self.session_id != "latest":
@@ -220,6 +235,10 @@ class TimelineScreen(AOTScreen):
 
     def _reload(self) -> None:
         self._resolve_session()
+        # Auto-switch the theme to match this session's engine if it
+        # differs from the currently active one. Operator can still
+        # override with `t`.
+        self._sync_theme_to_engine()
         ol = self.query_one(OptionList)
         ol.clear_options()
         try:

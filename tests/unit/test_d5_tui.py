@@ -951,3 +951,160 @@ async def test_navigation_deep_link_session(plugin_data_dir):
         await pilot.press("escape")
         await pilot.pause()
         assert app.screen.__class__.__name__ == "HomeScreen"
+
+
+# ---- Phase 3.A: themes ----
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+def test_theme_helpers_map_engine_to_theme():
+    """`theme_for_engine` returns the Claude theme for claude-code,
+    Codex theme for everything else (including None/unknown)."""
+    from tui.themes import CLAUDE_THEME, CODEX_THEME, next_theme, theme_for_engine
+
+    assert theme_for_engine("claude-code") == CLAUDE_THEME.name
+    assert theme_for_engine("codex") == CODEX_THEME.name
+    assert theme_for_engine(None) == CODEX_THEME.name
+    assert theme_for_engine("") == CODEX_THEME.name
+    assert theme_for_engine("something-else") == CODEX_THEME.name
+
+    # next_theme toggles between the two; anything unknown maps to
+    # claude (the "other" theme from the default codex).
+    assert next_theme(CODEX_THEME.name) == CLAUDE_THEME.name
+    assert next_theme(CLAUDE_THEME.name) == CODEX_THEME.name
+    assert next_theme("textual-dark") == CLAUDE_THEME.name
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_theme_auto_detects_claude_engine(plugin_data_dir):
+    """The newest session's engine field decides the initial theme:
+    a claude-code session → aot-claude, no session → aot-codex."""
+    from core.recorder import append_event
+    from tui.app import AOTApp
+    from tui.themes import CLAUDE_THEME
+
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",
+            "event_type": "user_prompt",
+            "session_id": "theme-claude-001",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.theme == CLAUDE_THEME.name
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_theme_auto_detects_codex_engine(plugin_data_dir):
+    """A codex session → aot-codex initial theme."""
+    from core.recorder import append_event
+    from tui.app import AOTApp
+    from tui.themes import CODEX_THEME
+
+    append_event(
+        {
+            "v": 1,
+            "engine": "codex",
+            "event_type": "user_prompt",
+            "session_id": "theme-codex-001",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.theme == CODEX_THEME.name
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_t_cycles_theme(plugin_data_dir):
+    """Pressing `t` toggles between the two engine themes."""
+    from tui.app import AOTApp
+    from tui.themes import CLAUDE_THEME, CODEX_THEME
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # No sessions → starts on Codex theme.
+        assert app.theme == CODEX_THEME.name
+
+        await pilot.press("t")
+        await pilot.pause()
+        assert app.theme == CLAUDE_THEME.name
+
+        await pilot.press("t")
+        await pilot.pause()
+        assert app.theme == CODEX_THEME.name
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_timeline_syncs_theme_to_session_engine(plugin_data_dir):
+    """Drilling into a claude-code session's timeline switches the
+    active theme even if the app started on Codex (e.g. via deep-link
+    to a session whose engine differs from the newest one)."""
+    from core.recorder import append_event
+    from tui.app import AOTApp
+    from tui.themes import CLAUDE_THEME
+
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",
+            "event_type": "user_prompt",
+            "session_id": "theme-sync-001",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp("theme-sync-001", data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "TimelineScreen"
+        # Timeline._sync_theme_to_engine ran on mount → claude theme.
+        assert app.theme == CLAUDE_THEME.name

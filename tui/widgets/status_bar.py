@@ -48,8 +48,9 @@ class StatusBar(Widget):
         self.refresh()
 
     def render(self) -> Text:
+        accent = _accent(self.app)
         text = Text()
-        text.append(self.engine, style="bold cyan")
+        text.append(self.engine, style=f"bold {accent}")
         if self.session_short:
             text.append("  ·  ", style="dim")
             text.append(self.session_short, style="bold")
@@ -63,3 +64,10 @@ class StatusBar(Widget):
         text.append("  ·  ", style="dim")
         text.append(datetime.now().strftime("%H:%M"), style="dim")
         return text
+
+
+def _accent(app) -> str:
+    try:
+        return app.current_theme.accent or "cyan"
+    except Exception:
+        return "cyan"
