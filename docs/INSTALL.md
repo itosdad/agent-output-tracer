@@ -171,6 +171,38 @@ name) and `aot` (short alias). They are interchangeable.
 pipx install 'git+https://github.com/itosdad/agent-output-tracer.git@v0.6.0'
 ```
 
+#### `aot: command not found` after pipx install
+
+pipx puts the installed binaries in `~/.local/bin/`. If that directory
+isn't on your shell `PATH`, the `aot` command won't resolve. pipx warns
+about this at install time:
+
+```
+⚠ Note: '/Users/<you>/.local/bin' is not on your PATH environment variable.
+```
+
+Fix:
+
+```bash
+pipx ensurepath          # appends the line to ~/.zshrc (or ~/.bashrc)
+exec $SHELL              # reload the current shell
+# or open a new terminal tab
+```
+
+Verify:
+
+```bash
+which aot                # → /Users/<you>/.local/bin/aot
+aot --version            # → agent-output-tracer 0.6.0
+```
+
+Manual equivalent if you prefer not to use `pipx ensurepath`:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
 ### Editable / dev install
 
 ```bash
@@ -440,6 +472,12 @@ Session ids are engine-issued (typically UUID v4 strings, e.g.
 
 Install Python 3 system-wide. macOS Monterey+ ships 3.9 by default,
 which is enough for the hooks. The CLI requires 3.11+ separately.
+
+### `aot: command not found` after pipx install
+
+`~/.local/bin/` (pipx's install target) is not on your shell `PATH`.
+See [End-user install (pipx, recommended)](#end-user-install-pipx-recommended)
+for the fix — short version: `pipx ensurepath` then reload the shell.
 
 ### Hooks fire but events.jsonl never appears
 
