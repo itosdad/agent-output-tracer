@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0] — 2026-05-15
+
+Phase A milestone: Claude Code capture pipeline + the headline forensic
+query surface (`replay`, `list`, `latest`, `grep`, `state-at`). 182 tests
+pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
 
 ### Added
 
@@ -83,3 +87,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   total file reads, byte count, user prompts / tool calls / agent
   responses counters, top-10 reads with a `⚠️ repeated` flag at the
   3+ threshold. 177 total pass.
+- Phase A-10: end-to-end lifecycle test driving a multi-turn session
+  through every hook script (subprocess) and exercising every Phase A
+  query (replay / list / latest / grep / state-at). Performance budget
+  test asserts `append_event` averages <15ms per call (DESIGN §9.5) and
+  1000 events finalize in under 5s. README updated to v0.1.0 with real
+  CLI output. 182 total pass.
