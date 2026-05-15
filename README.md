@@ -1,5 +1,11 @@
 # agent-output-tracer
 
+[![tests](https://github.com/itosdad/agent-output-tracer/actions/workflows/test.yml/badge.svg)](https://github.com/itosdad/agent-output-tracer/actions/workflows/test.yml)
+[![lint](https://github.com/itosdad/agent-output-tracer/actions/workflows/lint.yml/badge.svg)](https://github.com/itosdad/agent-output-tracer/actions/workflows/lint.yml)
+[![release](https://img.shields.io/github/v/release/itosdad/agent-output-tracer?include_prereleases&sort=semver)](https://github.com/itosdad/agent-output-tracer/releases)
+[![license](https://img.shields.io/github/license/itosdad/agent-output-tracer)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org)
+
 > Universal AI agent session forensic debugger. Replay, trace, and query
 > agent behavior when output looks wrong.
 
@@ -197,6 +203,12 @@ event schema, CLI surface, safety guarantees, version constraints.
 roadmap (TUI, bisect, content-address, OTel sidecar).
 
 [`CHANGELOG.md`](CHANGELOG.md) — per-version diff.
+
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for dev setup, scope
+guardrails, and PR workflow. The project follows the
+[Contributor Covenant](CODE_OF_CONDUCT.md) Code of Conduct.
 
 ## License
 

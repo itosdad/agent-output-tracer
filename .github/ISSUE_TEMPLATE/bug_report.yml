@@ -1,0 +1,78 @@
+name: Bug report
+description: Something is broken or the output is wrong
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: |
+        Describe the unexpected behavior. If you have a session id where
+        it happened, including it (`aot list` shows recent ones) lets us
+        reason about exactly what was captured.
+      placeholder: |
+        When I run `aot trace --session latest --output "..."`, the command
+        exits 0 but never prints the timeline...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Minimal commands or steps that reliably reproduce the issue.
+      placeholder: |
+        1. Start a Claude Code session and run any tool
+        2. `aot replay --session latest --show-hints`
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What you thought should happen.
+    validations:
+      required: true
+
+  - type: input
+    id: aot-version
+    attributes:
+      label: agent-output-tracer version
+      description: Output of `aot --version`
+      placeholder: e.g. 0.6.0
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: e.g. 3.13.1 (CLI) / 3.9.6 (hook runtime)
+
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Engine
+      options:
+        - Claude Code
+        - Codex CLI
+        - Both
+    validations:
+      required: true
+
+  - type: input
+    id: engine-version
+    attributes:
+      label: Engine version
+      placeholder: e.g. claude-code 2.0.42 / codex 0.130
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: aot doctor output
+      description: |
+        Paste the output of `aot doctor`. This tells us a lot at a glance.
+      render: text

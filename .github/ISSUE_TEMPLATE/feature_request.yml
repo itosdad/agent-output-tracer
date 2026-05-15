@@ -1,0 +1,50 @@
+name: Feature request
+description: Propose a new capability or enhancement
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, please skim [`docs/DESIGN.md`](../blob/main/docs/DESIGN.md)
+        §2 (design principles) and [`docs/DESIGN_FORENSIC_UX.md`](../blob/main/docs/DESIGN_FORENSIC_UX.md)
+        §1.1 (constitution) — proposals that conflict with those principles
+        are usually declined.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem you're trying to solve
+      description: What forensic situation does this address that the existing toolset can't?
+      placeholder: |
+        When I'm comparing the same agent's behavior across multiple sessions...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: |
+        A CLI command shape, query verb, or analyzer pattern. Concrete
+        is good; full spec isn't required.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other ways you considered solving this (or where the existing CLI falls short).
+
+  - type: checkboxes
+    id: design-compat
+    attributes:
+      label: Design compatibility check
+      description: Tick what applies. Anything unticked is fine — flag it for discussion.
+      options:
+        - label: Issue-agnostic (doesn't claim "is this hallucination?")
+        - label: User-driven (no proactive alerts / background work)
+        - label: Observation-only (no agent intervention)
+        - label: Doesn't write outside the plugin data dir
+        - label: Engine-agnostic (works on both Claude Code and Codex captures)
