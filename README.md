@@ -3,89 +3,189 @@
 > Universal AI agent session forensic debugger. Replay, trace, and query
 > agent behavior when output looks wrong.
 
-`agent-output-tracer` is a Claude Code / Codex plugin that **records every
-session completely** via hooks. When you notice that an agent's output looks
-off, you can **replay, trace, and query** the session to reconstruct exactly
-what happened — what files were read, in what order, in response to which user
-prompts.
+A **Claude Code / Codex CLI plugin** that records every session via hooks.
+When an agent's output looks off — wrong file touched, fact you never
+mentioned, conclusion that doesn't match what was read — you replay the
+session and walk back through exactly what happened, in chronological order,
+with byte counts and tool inputs intact.
 
-The plugin is **issue-agnostic** (it doesn't try to classify "hallucination" vs
-"context rot" vs "wrong tool") and **user-driven** (no proactive alerts; you
-decide when something needs investigation).
+The plugin is **issue-agnostic** (it doesn't try to classify "hallucination"
+vs "context rot" vs "wrong tool") and **user-driven** (no proactive alerts;
+you decide when something needs investigation). Hooks are observation-only
+— the agent is never blocked.
 
-## Status
+**Current: v0.4.0** — Phase A (capture) + Phase B (forensic query suite,
+10 commands) + Phase C (Codex CLI support) + Phase D-1 (UX foundation:
+`aot` alias, color, error UX, `doctor` / `config`). 347 tests pass on
+Python 3.13; hook runtime verified on Python 3.9 (system `python3` on
+macOS). See [`CHANGELOG.md`](CHANGELOG.md).
 
-**v0.2.0** — Phase A capture pipeline + Phase B-2..B-5 forensic query
-suite. Headline commands `replay`, `list`, `latest`, `grep`, `state-at`,
-`trace`, `why`, `diff`, `mentioned-but-not-read` all ship. Codex support
-and remaining Phase B items (`causal-graph`, anomaly hints, etc.) land
-later.
+---
 
-246 tests pass on macOS / Python 3.13; hook runtime verified under
-`/usr/bin/python3` (Python 3.9) so it works on every Mac.
+## Quick install
 
-See [`docs/DESIGN.md`](docs/DESIGN.md) for the full design and
-[`CHANGELOG.md`](CHANGELOG.md) for what's landed.
+### Claude Code
 
-## Quick example
-
-```bash
-# Replay the latest session as a timeline
-$ agent-output-tracer replay --session latest
-Session: demo
-Started: 2026-05-15T10:10:49.411+09:00
-Cwd:     /proj
-Events:  5
-Counts:  tools=1 user_prompts=1 agent_responses=1 unique_reads=1 (23 B)
-
-[10:10:49] [user] Hi please read foo.md
-[10:10:49] [tool] Read /proj/foo.md
-[10:10:49]   ↳ result: 23 B
-[10:10:49] [agent] (end_turn) foo.md contains hello world
-[10:10:49] [session_end]
-
-# List captured sessions
-$ agent-output-tracer list --last 5
-
-# Print the most recent session's id (useful for scripting)
-$ agent-output-tracer latest
-
-# Full-text regex across every string field in the session
-$ agent-output-tracer grep --session latest --pattern "DI container" -i
-
-# Snapshot of state at time T (lets you see context as it grew)
-$ agent-output-tracer state-at --session latest --time 10:23:45
+```
+/plugin marketplace add itosdad/agent-output-tracer
+/plugin install agent-output-tracer@itosdad-agent-output-tracer
 ```
 
-The headline `replay` view stitches together user prompts, tool calls, byte
-counts, and agent responses in chronological order. It's the fastest way to
-notice things like "this file was read 3 times" or "the agent touched a file
-I never mentioned."
+Verify in a fresh session: `/plugin` should list `agent-output-tracer` as
+enabled with 8 hooks registered.
 
-## Install
+### Codex CLI (≥ 0.128)
 
-See [`docs/INSTALL.md`](docs/INSTALL.md) for Claude Code + Codex install
-steps, the verify procedure (`_install_verify.jsonl` lands on the first
-hook fire so you can confirm wiring before relying on it), and troubleshooting.
+Enable the feature flag first (Codex silently ignores hooks otherwise):
+
+```bash
+mkdir -p ~/.codex
+cat >> ~/.codex/config.toml <<'EOF'
+[features]
+codex_hooks = true
+EOF
+```
+
+Then install:
+
+```
+codex plugin marketplace add itosdad/agent-output-tracer
+```
+
+### CLI binary
+
+The plugin captures sessions on its own. The CLI is what you use to query
+captured data:
+
+```bash
+pipx install git+https://github.com/itosdad/agent-output-tracer.git@v0.4.0
+```
+
+Two binaries are installed: `agent-output-tracer` (canonical) and `aot`
+(short alias). The rest of this README uses `aot`.
+
+Detailed install / verify / troubleshoot: [`docs/INSTALL.md`](docs/INSTALL.md).
+
+---
+
+## Daily usage
+
+### Find a session
+
+```bash
+aot list --last 10            # 10 most recent sessions, newest first
+aot latest                    # just the most-recent session id
+```
+
+### Replay it
+
+```bash
+aot replay --session latest             # full timeline
+aot replay --session latest --show-hints   # + anomaly hints (B-8)
+aot replay --session a3f2 --format json    # JSON for scripts
+```
+
+Session specs accept the full UUID, any unique ≥ 4-char prefix, `latest`,
+`latest-N`, or `YYYY-MM-DD`.
+
+### Investigate a specific output
+
+```bash
+# "Where did the agent get this phrase from?" — walks back from the first
+# agent_response containing PHRASE, classifies each prior Read by whether
+# its tool_response contains the phrase. Exit 3 if it's a hallucination
+# candidate (no Read and no user prompt explains it).
+aot trace --session latest --output "PHRASE"
+
+# "Why did this event fire?" — surfaces the 3 events before, the most-
+# recent user_prompt, and any Glob whose result contained this path.
+aot why --session latest --path /proj/foo.md
+
+# Session-level hallucination scan: paths the agent mentioned that no
+# user prompt nor tool_response introduced.
+aot mentioned-but-not-read --session latest
+
+# Asymmetric user-vs-agent diff: paths the user asked for vs paths the
+# agent actually touched (basename-aware).
+aot diff --session latest
+```
+
+### Other forensic verbs
+
+```bash
+aot grep --session latest --pattern "regex" -i      # full-text search
+aot state-at --session latest --time 10:23:45        # state at moment T
+aot causal-graph --session latest                    # mermaid causal graph
+aot export-trace --session latest --output report.md # all-in-one report
+```
+
+### Maintenance
+
+```bash
+aot doctor               # runtime / data dir / hook wiring self-check
+aot config list          # show every CLI default + its source
+aot config set defaults.color never
+aot gc --dry-run         # show what retention policy would prune
+aot gc                   # apply: strip content >30d, delete dirs >365d
+```
+
+---
 
 ## What gets recorded
 
-For every session:
+Per session, in `${CLAUDE_PLUGIN_DATA}/sessions/<session_id>/`:
 
-- `events.jsonl` — one JSON line per event (user prompt / tool call
-  pre+post / agent response / session end).
-- `metadata.json` — running counters (tool calls, unique files read,
-  total bytes, ts_start/ts_end, etc.).
+| file | content |
+|---|---|
+| `events.jsonl` | One JSON line per event — `user_prompt` / `pre_tool` / `post_tool` / `agent_response` / `session_end` (+ Codex `session_start` / `compact_pre` / `compact_post`) |
+| `metadata.json` | Running counters: tool calls, unique files read, total bytes, `ts_start` / `ts_end`, etc. Rewritten on every appended event |
 
-Default secret patterns (OpenAI/Anthropic API keys, GitHub PATs, AWS keys,
-JWT, common `password=`/`token=` shapes) are masked before write. Hook
-exceptions are swallowed; the agent is never blocked by an
-observation-only plugin.
+Default secret patterns (OpenAI / Anthropic API keys, GitHub PATs, AWS
+access keys, JWT, common `password=` / `token=` / `secret=` shapes) are
+masked before write. Hook exceptions are swallowed; the agent is never
+blocked by an observation-only plugin (DESIGN §9.1).
+
+Events from both engines normalize to the same schema, so the same `aot`
+query commands work regardless of which engine produced the session.
+
+---
+
+## How it's safe to leave on
+
+| Concern | How the plugin handles it |
+|---|---|
+| Hooks could block the agent | Every hook exits 0 unconditionally. JSON parse errors, recorder failures, redactor crashes — all swallowed |
+| Host repo could get polluted | Writes only to `${CLAUDE_PLUGIN_DATA}` (per engine). Never touches `<repo>/.claude/` or `<repo>/tasks/` |
+| Secrets could leak into events.jsonl | `core/redactor.py` masks 7 common formats by default. Custom patterns via config (D-2+) |
+| Disk could grow forever | `aot gc` strips content fields after 30 days, deletes session dirs after 365 days (configurable). Run from cron or just on demand |
+| Old sessions could break a new reader | events.jsonl is append-only and versioned (`v` field). Future schema additions stay forward/backward compatible |
+
+---
+
+## Phase status
+
+| Phase | Scope | Status |
+|---|---|---|
+| **A** | Capture pipeline (5 hooks → adapter → recorder), redaction, `replay` / `list` / `latest` / `grep` / `state-at` | ✅ v0.1.0 |
+| **B** | `trace` / `why` / `diff` / `mentioned-but-not-read` / `causal-graph` / `export-trace` / anomaly hints / `gc` | ✅ v0.3.0 |
+| **C** | Codex CLI support (`adapters/codex.py`, dual-engine hooks, install docs) | ✅ v0.4.0 |
+| **D-1** | UX foundation (`aot` alias, color, 3-line errors, `doctor`, `config`) | ✅ v0.4.0+ |
+| D-2..7 | Schema v2, bisect / note / find vocab, live `tail`, side-channel TUI, OTel + engine-log bridges, safe-share export | Draft in [`docs/DESIGN_FORENSIC_UX.md`](docs/DESIGN_FORENSIC_UX.md) |
+
+Phase B-1 (per-session search index for faster grep) is deferred until
+grep actually feels slow on real data.
+
+---
 
 ## Design
 
-See [`docs/DESIGN.md`](docs/DESIGN.md) for goals, non-goals, hook contract,
-schema, CLI surface, safety, and limits.
+[`docs/DESIGN.md`](docs/DESIGN.md) — goals, non-goals, hook contract,
+event schema, CLI surface, safety guarantees, version constraints.
+
+[`docs/DESIGN_FORENSIC_UX.md`](docs/DESIGN_FORENSIC_UX.md) — Phase D
+roadmap (TUI, bisect, content-address, OTel sidecar).
+
+[`CHANGELOG.md`](CHANGELOG.md) — per-version diff.
 
 ## License
 

@@ -7,7 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.0] — 2026-05-15
+## [0.5.0] — 2026-05-15
+
+Phase D-1 — CLI UX foundation. New `aot` short alias for the binary,
+3-line error UX, color/symbol palette honoring `NO_COLOR`, self-
+diagnostic `doctor`, and `config get/set/list/unset` for CLI defaults.
+347 tests pass on Python 3.13; hook runtime still 3.9-compatible.
+
+### Added
+
+- D-1 / Phase D §9.1 deliverables:
+  - `aot` console script alongside the canonical `agent-output-tracer`
+    (both point at `cli.main:main`). All existing commands work under
+    either name.
+  - `--color {auto,always,never}` global flag. `auto` honors `NO_COLOR`
+    env and TTY detection. ANSI codes are emitted by a `cli/colors.Palette`
+    with the symbol/color table from DESIGN_FORENSIC_UX §4.2 (ASCII only,
+    no emoji).
+  - 3-line error UX (`cli/errors.format_error_block` / `print_error`):
+    `error:` headline → `cause:` data → `try:` next-action commands.
+    Wired into every `--session` resolution path; ambiguous prefixes,
+    missing sessions, malformed `--time`, bad regex, and unknown config
+    keys all surface a consistent structure.
+  - `aot doctor` — runtime / data dir / recent sessions / hooks wiring
+    self-check. Each check returns ok/warn/fail with a `fix:` hint when
+    something needs attention. `--format json` for scripting.
+  - `aot config get|set|unset|list` — TOML at
+    `~/.config/agent-output-tracer/config.toml` (overridable via
+    `AOT_CONFIG_DIR` env). Validates `defaults.density` and
+    `defaults.color` enums; rejects unknown keys with the same 3-line
+    error UX.
+- 19 new unit tests covering Palette TTY/NO_COLOR/--color logic, error
+  block formatting (minimal / multiline cause / aligned tries), doctor
+  text + JSON output (empty data dir + seeded), and the full config
+  get/set/unset/list round-trip.
+- README.md rewritten as an install + daily-usage runbook with the
+  Claude Code 2-step marketplace flow, Codex feature-flag setup,
+  per-verb examples, and a phase status table.
+
+
 
 Phase C — Codex CLI support. Codex sessions now record alongside Claude
 Code through the same hook script set, with runtime engine detection
@@ -231,6 +269,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.5.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.5.0
 [0.4.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.4.0
 [0.3.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.3.0
 [0.2.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.2.0
