@@ -148,6 +148,66 @@ def test_doctor_json_output(tmp_path):
     assert result["ok"] in (True, False)
 
 
+def _isolate_doctor_paths(tmp_path, monkeypatch):
+    """Neutralise the dev-install probe and redirect $HOME to tmp_path.
+
+    Lets tests simulate a pipx-style install where the CLI lives away from
+    the plugin's hooks/ directory.
+    """
+    monkeypatch.setenv("HOME", str(tmp_path))
+    fake_pkg = tmp_path / "fake-site-packages" / "query" / "doctor.py"
+    fake_pkg.parent.mkdir(parents=True)
+    fake_pkg.write_text("")
+    monkeypatch.setattr("query.doctor.__file__", str(fake_pkg))
+    return tmp_path
+
+
+def test_doctor_hooks_wiring_finds_claude_marketplace(tmp_path, monkeypatch):
+    _isolate_doctor_paths(tmp_path, monkeypatch)
+    cc_install = (
+        tmp_path / ".claude" / "plugins" / "marketplaces" / "itosdad-agent-output-tracer" / "hooks"
+    )
+    cc_install.mkdir(parents=True)
+    (cc_install / "hooks.json").write_text('{"hooks": {"SessionStart": []}}')
+
+    buf = io.StringIO()
+    result = doctor(data_dir=str(tmp_path), fmt="text", stream=buf)
+    hw = next(c for c in result["checks"] if c["name"] == "hooks_wiring")
+    assert hw["status"] == "ok"
+    assert "hooks.json" in hw["detail"]
+
+
+def test_doctor_hooks_wiring_finds_codex_cache(tmp_path, monkeypatch):
+    _isolate_doctor_paths(tmp_path, monkeypatch)
+    cdx_install = (
+        tmp_path
+        / ".codex"
+        / "plugins"
+        / "cache"
+        / "itosdad-agent-output-tracer"
+        / "agent-output-tracer"
+        / "0.6.0"
+        / "hooks"
+    )
+    cdx_install.mkdir(parents=True)
+    (cdx_install / "hooks.json").write_text('{"hooks": {"SessionStart": []}}')
+
+    buf = io.StringIO()
+    result = doctor(data_dir=str(tmp_path), fmt="text", stream=buf)
+    hw = next(c for c in result["checks"] if c["name"] == "hooks_wiring")
+    assert hw["status"] == "ok"
+
+
+def test_doctor_hooks_wiring_warns_when_uninstalled(tmp_path, monkeypatch):
+    """pipx-installed CLI with no marketplace install anywhere → warn, not fail."""
+    _isolate_doctor_paths(tmp_path, monkeypatch)
+    buf = io.StringIO()
+    result = doctor(data_dir=str(tmp_path), fmt="text", stream=buf)
+    hw = next(c for c in result["checks"] if c["name"] == "hooks_wiring")
+    assert hw["status"] == "warn"
+    assert "fix" in hw and hw["fix"]
+
+
 # ----- config_cmd -----
 
 

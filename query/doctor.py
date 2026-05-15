@@ -161,31 +161,82 @@ def _check_hooks_wiring() -> dict:
     """Find the plugin's hooks.json on disk.
 
     The CLI doesn't have an authoritative way to ask the engine which
-    hooks it loaded, but the file's presence + parseability is enough
-    of a smoke test for D-1.
+    hooks it loaded. We probe the known install locations in order:
+
+      1. The repo layout the CLI itself sits in (dev / editable install
+         only — pip install -e from a clone). When the CLI is installed
+         via pipx, this path lands inside site-packages, where hooks/ is
+         not shipped, so this branch correctly misses.
+      2. The Claude Code marketplace install root
+         (~/.claude/plugins/marketplaces/*/hooks/hooks.json).
+      3. The Codex marketplace install root
+         (~/.codex/plugins/cache/*/agent-output-tracer/*/hooks/hooks.json).
+
+    Any one of these existing + parseable is enough to call the wiring
+    OK. None found is a warn (not fail) — the user may simply not have
+    installed the plugin in any engine yet; that's not an error state.
     """
-    candidate = Path(__file__).resolve().parent.parent / "hooks" / "hooks.json"
-    if not candidate.exists():
+    candidates: list[Path] = []
+
+    # 1. Dev / editable install: CLI source sits next to hooks/
+    dev_candidate = Path(__file__).resolve().parent.parent / "hooks" / "hooks.json"
+    if dev_candidate.exists():
+        candidates.append(dev_candidate)
+
+    # 2. Claude Code marketplace clones
+    cc_root = Path.home() / ".claude" / "plugins" / "marketplaces"
+    if cc_root.is_dir():
+        for marketplace in cc_root.iterdir():
+            cand = marketplace / "hooks" / "hooks.json"
+            if cand.exists():
+                candidates.append(cand)
+
+    # 3. Codex marketplace cache (path layout per design §3.2.7)
+    cdx_root = Path.home() / ".codex" / "plugins" / "cache"
+    if cdx_root.is_dir():
+        for marketplace in cdx_root.iterdir():
+            plugin_dir = marketplace / "agent-output-tracer"
+            if not plugin_dir.is_dir():
+                continue
+            for version in plugin_dir.iterdir():
+                cand = version / "hooks" / "hooks.json"
+                if cand.exists():
+                    candidates.append(cand)
+
+    if not candidates:
         return {
             "name": "hooks_wiring",
-            "status": "fail",
-            "detail": f"{candidate} not found",
-            "fix": "reinstall the plugin (the marketplace add step missed hooks/)",
+            "status": "warn",
+            "detail": (
+                "no hooks.json found in dev location, Claude Code marketplaces, "
+                "or Codex plugin cache"
+            ),
+            "fix": (
+                "install the plugin: /plugin marketplace add itosdad/agent-output-tracer "
+                "(Claude Code) or codex plugin marketplace add itosdad/agent-output-tracer (Codex)"
+            ),
         }
+
+    # Pick the first valid one for the detail line; any failure here is
+    # a real problem worth surfacing.
+    chosen = candidates[0]
     try:
-        data = json.loads(candidate.read_text())
+        data = json.loads(chosen.read_text())
     except Exception as exc:
         return {
             "name": "hooks_wiring",
             "status": "fail",
-            "detail": f"hooks.json is not valid JSON: {exc}",
+            "detail": f"{chosen} is not valid JSON: {exc}",
             "fix": "reinstall the plugin from a clean checkout",
         }
     n_events = len(data.get("hooks", {}))
+    extra = ""
+    if len(candidates) > 1:
+        extra = f" (+ {len(candidates) - 1} other install location(s))"
     return {
         "name": "hooks_wiring",
         "status": "ok",
-        "detail": f"{candidate} ({n_events} event types registered)",
+        "detail": f"{chosen} ({n_events} event types registered){extra}",
         "fix": None,
     }
 
