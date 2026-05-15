@@ -48,3 +48,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   runs each script as a real subprocess: well-formed event, bad JSON,
   empty stdin, missing env, pre/post pair round-trip, full 5-hook session.
   74 total pass.
+- Phase A-5: `core/redactor.py` masks common secret formats
+  (OpenAI / Anthropic API keys, GitHub PATs, AWS access keys, JWTs,
+  generic `password=`/`token=`/`secret=` key-value pairs with 16+ chars
+  of value) with `[REDACTED]` before write. `redact_event` walks the
+  event recursively (tool_input, raw_event, paths). Recorder wires
+  redaction in by default; `redact=False` is available for tests.
+  98 total pass.

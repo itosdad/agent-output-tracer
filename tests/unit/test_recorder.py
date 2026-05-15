@@ -242,6 +242,32 @@ def test_metadata_engine_records_first_seen(plugin_data_dir):
     assert meta["engine"] == "claude-code"
 
 
+def test_recorder_redacts_by_default(plugin_data_dir):
+    """append_event must mask known secret patterns before writing."""
+    e = _event(
+        event_type="post_tool",
+        tool_name="Bash",
+        result_bytes=100,
+    )
+    e["command"] = "echo sk-1234567890abcdef1234567890abcdef1234567890ab"
+    e["tool_response"] = "token=ghp_abcdefghijklmnopqrstuvwxyz0123456789AA"
+
+    append_event(e)
+
+    line = (plugin_data_dir / "sessions" / "S1" / "events.jsonl").read_text()
+    assert "sk-1234567890" not in line
+    assert "ghp_abcdef" not in line
+    assert "[REDACTED]" in line
+
+
+def test_recorder_redaction_can_be_disabled(plugin_data_dir):
+    e = _event(event_type="post_tool", tool_name="Bash")
+    e["command"] = "echo sk-1234567890abcdef1234567890abcdef1234567890ab"
+    append_event(e, redact=False)
+    line = (plugin_data_dir / "sessions" / "S1" / "events.jsonl").read_text()
+    assert "sk-1234567890" in line  # not redacted
+
+
 def test_corrupt_metadata_json_is_replaced_not_crashed(plugin_data_dir):
     """If metadata.json gets corrupted out-of-band, the next append
     should rebuild it rather than raise."""

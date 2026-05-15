@@ -24,6 +24,7 @@ from core.path_utils import (
     is_safe_session_id,
     resolve_data_dir,
 )
+from core.redactor import redact_event
 
 METADATA_FILENAME = "metadata.json"
 EVENTS_FILENAME = "events.jsonl"
@@ -51,8 +52,18 @@ def session_dir(session_id, *, data_dir=None):
     return base / SESSIONS_SUBDIR / session_id
 
 
-def append_event(event, *, data_dir=None):
+def append_event(event, *, data_dir=None, redact=True, extra_redact_patterns=None):
     """Append one normalized event to its session log and update metadata.
+
+    Args:
+        event: normalized event dict (DESIGN §3.3 / §5.1).
+        data_dir: explicit data dir; falls back to CLAUDE_PLUGIN_DATA.
+        redact: when True (default), apply `core.redactor.redact_event`
+            before writing. Counter metadata is computed against the
+            redacted shape, so counts stay consistent with what's on
+            disk.
+        extra_redact_patterns: additional regex strings to add on top of
+            the default secret patterns.
 
     Raises:
         RecorderError: missing session_id, unsafe session_id, missing
@@ -67,11 +78,13 @@ def append_event(event, *, data_dir=None):
     sdir = session_dir(session_id, data_dir=data_dir)
     sdir.mkdir(parents=True, exist_ok=True)
 
+    to_write = redact_event(event, patterns=extra_redact_patterns) if redact else event
+
     events_file = sdir / EVENTS_FILENAME
     with events_file.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+        f.write(json.dumps(to_write, ensure_ascii=False) + "\n")
 
-    _update_metadata(sdir, event)
+    _update_metadata(sdir, to_write)
 
 
 def _update_metadata(sdir: Path, event: dict) -> None:
