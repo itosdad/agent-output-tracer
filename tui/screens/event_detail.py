@@ -124,7 +124,25 @@ class EventDetailScreen(AOTScreen):
             self.app.bell()
 
     def action_noop_note(self) -> None:
-        self.app.bell()
+        from tui.screens.note_modal import NoteModal
+
+        self.app.push_screen(NoteModal(), self._on_note_submitted)
+
+    def _on_note_submitted(self, body) -> None:
+        if not body:
+            return
+        from query.note import note_add
+
+        try:
+            note_add(
+                self._session_id,
+                body,
+                event_idx=self._idx,
+                data_dir=self._data_dir,
+            )
+            self.app.bell()
+        except Exception:
+            self.app.bell()
 
     def action_next_event(self) -> None:
         if self._idx + 1 >= len(self._all_events):

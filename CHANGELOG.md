@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.5] — 2026-05-15 — Phase 2.F: Note + Export modals
+
+### Added
+
+- **Note modal** triggered by `n` on Event Detail. Single-line body
+  input; tag defaults to `observation` (richer tag selection is a
+  palette concern, `:note tag:question body…`). Session id and
+  event_idx are pre-filled from the parent screen.
+- **Export modal** triggered by `e` on Sessions. Multi-field form:
+  format (markdown / json / archive, ←/→ cycle), safe-share (Space
+  toggle), excerpt size (←/→ -100/+100), output path. Default path
+  is `~/aot-export-<sid8>.md`. Enter exports — the common case stays
+  two keystrokes.
+
 ## [0.9.4] — 2026-05-15 — Phase 2.E: Search screen
 
 ### Added
@@ -594,6 +608,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.9.5]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.5
 [0.9.4]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.4
 [0.9.3]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.3
 [0.9.2]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.2

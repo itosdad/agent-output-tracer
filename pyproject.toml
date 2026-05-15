@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-output-tracer"
-version = "0.9.4"
+version = "0.9.5"
 description = "Universal AI agent session forensic debugger. Replay, trace, and query agent behavior when output looks wrong."
 readme = "README.md"
 license = { text = "MIT" }

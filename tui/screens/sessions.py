@@ -29,6 +29,7 @@ class SessionsScreen(AOTScreen):
     BINDINGS = [
         Binding("enter", "open", "open", show=False),
         Binding("r", "refresh", "refresh", show=False),
+        Binding("e", "export", "export", show=False),
     ]
 
     def __init__(self, data_dir=None) -> None:
@@ -46,6 +47,7 @@ class SessionsScreen(AOTScreen):
             ("↑↓", "select"),
             ("g/G", "top/bot"),
             ("enter", "open"),
+            ("e", "export"),
             ("r", "refresh"),
             ("esc", "back"),
         ]
@@ -83,6 +85,20 @@ class SessionsScreen(AOTScreen):
 
         self.app.push_screen(TimelineScreen(sid, data_dir=self._data_dir))
 
+    def action_export(self) -> None:
+        ol = self.query_one(OptionList)
+        idx = ol.highlighted
+        if idx is None or idx < 0 or idx >= len(self._sids):
+            self.app.bell()
+            return
+        sid = self._sids[idx]
+        from tui.screens.export_modal import ExportModal
+
+        self.app.push_screen(
+            ExportModal(session_short=sid[:8]),
+            lambda values: _run_export(self.app, sid, values, self._data_dir),
+        )
+
     def _reload(self) -> None:
         ol = self.query_one(OptionList)
         ol.clear_options()
@@ -102,6 +118,37 @@ class SessionsScreen(AOTScreen):
         # after init-time options), so without this Enter is a no-op
         # on first focus.
         ol.highlighted = 0
+
+
+def _run_export(app, session_id: str, values: dict | None, data_dir) -> None:
+    if not values:
+        return
+    from pathlib import Path
+
+    from query.export import export_safe_share, export_trace
+
+    fmt = values.get("format", "markdown")
+    safe = bool(values.get("safe_share", True))
+    excerpt = int(values.get("excerpt", 0))
+    output = values.get("output") or ""
+    try:
+        if safe:
+            export_safe_share(
+                session_id,
+                data_dir=data_dir,
+                fmt=fmt,
+                keep_excerpt=excerpt,
+                output_path=Path(output) if output and fmt != "json" else None,
+            )
+        else:
+            export_trace(
+                session_id,
+                data_dir=data_dir,
+                output_path=Path(output) if output else None,
+            )
+        app.bell()
+    except Exception:
+        app.bell()
 
 
 def _render_session(meta: dict, *, is_latest: bool) -> Text:
