@@ -78,6 +78,16 @@ class TimelineScreen(AOTScreen):
             ("esc", "back"),
         ]
 
+    def help_entries(self) -> list[tuple[str, str]]:
+        return [
+            ("↑↓", "step through events"),
+            ("g / G", "first / last event"),
+            ("enter", "open event detail"),
+            ("o", "toggle live follow"),
+            ("r", "refresh from disk"),
+            ("/", "search in this timeline  (Phase 2.E)"),
+        ]
+
     def compose_body(self):
         yield OptionList(id="timeline-list")
 

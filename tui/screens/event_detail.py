@@ -78,6 +78,19 @@ class EventDetailScreen(AOTScreen):
             ("esc", "back"),
         ]
 
+    def help_entries(self) -> list[tuple[str, str]]:
+        # The richer set — what `?` advertises but the cramped footer
+        # cannot show.
+        return [
+            ("↑↓ / j k", "previous / next event"),
+            ("g / G", "first / last event"),
+            ("r", "toggle raw event JSON"),
+            ("s", "toggle safe-share preview"),
+            ("y", "yank event JSON to clipboard"),
+            ("n", "add a note  (Phase 2.F)"),
+            ("enter", "jump to related event (same correlation_id)"),
+        ]
+
     def compose_body(self):
         # markup=False keeps Rich Text styles in `update()` exact;
         # shrink=False + expand keeps wrapping on for narrow terminals.

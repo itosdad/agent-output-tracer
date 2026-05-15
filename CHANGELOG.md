@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-05-15 — Phase 2.A: help overlay
+
+### Added
+
+- **`?` help overlay** on every screen. A centered modal at 56-col
+  width (so it fits half-desktop layouts at 72 cols viewport) shows
+  the current screen's keybinds plus the universal global keybinds
+  (`esc`, `g/G`, `Home/End`, `:`, `?`, `t`, `q`). Any keystroke
+  dismisses — no need to memorise which key closes it.
+- `AOTScreen.help_entries()` hook so each screen can advertise more
+  detail in `?` than fits in the cramped footer. Sessions / Timeline /
+  Event Detail use this to expose bindings like `r refresh`, `/`
+  search, `y` yank, `n` note that the footer hides.
+
 ## [0.8.1] — 2026-05-15
 
 ### Added
@@ -516,6 +530,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.9.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.0
 [0.8.1]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.8.1
 [0.8.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.8.0
 [0.7.2]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.7.2

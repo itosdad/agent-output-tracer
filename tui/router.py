@@ -59,6 +59,15 @@ class AOTScreen(Screen):
     # frozen to the user.
     IS_ROOT: bool = False
 
+    # ---- subclass hooks for the help overlay ----
+
+    def help_entries(self) -> list[tuple[str, str]]:
+        """Return `[(key, label), ...]` for the help overlay's
+        "This screen" section. Defaults to `footer_hints()` — screens
+        with extra non-advertised bindings can override to expose them.
+        """
+        return list(self.footer_hints())
+
     # ---- subclass hooks ----
 
     def compose_body(self):
@@ -143,13 +152,20 @@ class AOTScreen(Screen):
                 return
         self.app.bell()
 
-    # ---- placeholders for phase 2 / 3 actions ----
+    # ---- universal actions ----
 
     def action_noop_help(self) -> None:
-        """Bound to `?`. Phase 2 will mount a help overlay; for now,
-        we no-op so the binding is visible in `footer_hints()` even
-        before the feature lands."""
-        self.app.bell()
+        """`?` — open the help overlay for this screen."""
+        from tui.screens.help import HelpOverlay
+
+        self.app.push_screen(
+            HelpOverlay(
+                screen_title=self.TITLE,
+                entries=self.help_entries(),
+            )
+        )
+
+    # ---- placeholders for phase 2 / 3 actions still to wire ----
 
     def action_noop_palette(self) -> None:
         self.app.bell()

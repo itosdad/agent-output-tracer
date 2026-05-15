@@ -380,6 +380,60 @@ async def test_enter_on_event_row_drills_into_event_detail(plugin_data_dir):
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
+async def test_help_overlay_opens_and_closes_on_any_key(plugin_data_dir):
+    """`?` pushes a HelpOverlay modal and any keypress dismisses it."""
+    from tui.app import AOTApp
+    from tui.screens.help import HelpOverlay
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "HomeScreen"
+        depth_before = len(app.screen_stack)
+
+        # Open help.
+        await pilot.press("question_mark")
+        await pilot.pause()
+        assert isinstance(app.screen, HelpOverlay)
+        assert len(app.screen_stack) == depth_before + 1
+
+        # Any key dismisses — try Enter, which on Home would normally
+        # drill into Sessions but should NOT bleed through here.
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "HomeScreen"
+        assert len(app.screen_stack) == depth_before
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_help_overlay_shows_screen_and_global_keybinds(plugin_data_dir):
+    """The rendered help text must include both this-screen entries
+    and the universal global entries (`q`, `:`, `?`, `g/G`)."""
+    from textual.widgets import Static
+
+    from tui.app import AOTApp
+    from tui.screens.help import HelpOverlay
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("question_mark")
+        await pilot.pause()
+        assert isinstance(app.screen, HelpOverlay)
+
+        body = app.screen.query_one("#help-body", Static)
+        text = str(body.content)
+        assert "This screen" in text
+        assert "Global" in text
+        assert "q" in text
+        assert "quit" in text
+        assert ":" in text
+        assert "g / Home" in text  # global jump-top entry
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
 async def test_g_G_jump_top_and_bottom(plugin_data_dir):
     """vim-style top/bottom jumps on the focused list:
     `g` (or Home) → first row, `G` (or End) → last row."""
