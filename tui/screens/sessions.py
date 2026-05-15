@@ -30,6 +30,12 @@ class SessionsScreen(AOTScreen):
         Binding("enter", "open", "open", show=False),
         Binding("r", "refresh", "refresh", show=False),
         Binding("e", "export", "export", show=False),
+        # Session-scoped sub-actions (Phase 3.C). Uppercase to avoid
+        # collision with the lowercase letters Textual's OptionList
+        # consumes for first-letter search.
+        Binding("S", "open_stats", "stats", show=False),
+        Binding("T", "open_timeline", "timeline", show=False),
+        Binding("F", "open_find", "find", show=False),
     ]
 
     def __init__(self, data_dir=None) -> None:
@@ -45,11 +51,22 @@ class SessionsScreen(AOTScreen):
     def footer_hints(self) -> list[tuple[str, str]]:
         return [
             ("↑↓", "select"),
-            ("g/G", "top/bot"),
-            ("enter", "open"),
+            ("enter", "timeline"),
+            ("S/T/F", "stats/tl/find"),
             ("e", "export"),
-            ("r", "refresh"),
             ("esc", "back"),
+        ]
+
+    def help_entries(self) -> list[tuple[str, str]]:
+        return [
+            ("↑↓", "select session"),
+            ("g / G", "first / last session"),
+            ("enter", "open this session's timeline"),
+            ("S", "open Stats for this session"),
+            ("T", "open Timeline for this session (same as Enter)"),
+            ("F", "open Find vocab picker scoped to this session"),
+            ("e", "export this session (markdown / json / archive)"),
+            ("r", "refresh sessions list from disk"),
         ]
 
     def compose_body(self):
@@ -98,6 +115,36 @@ class SessionsScreen(AOTScreen):
             ExportModal(session_short=sid[:8]),
             lambda values: _run_export(self.app, sid, values, self._data_dir),
         )
+
+    def action_open_stats(self) -> None:
+        sid = self._highlighted_sid()
+        if sid is None:
+            return
+        from tui.screens.stats import StatsScreen
+
+        self.app.push_screen(StatsScreen(sid, data_dir=self._data_dir))
+
+    def action_open_timeline(self) -> None:
+        sid = self._highlighted_sid()
+        if sid is None:
+            return
+        self._open_by_id(sid)
+
+    def action_open_find(self) -> None:
+        sid = self._highlighted_sid()
+        if sid is None:
+            return
+        from tui.screens.find import FindScreen
+
+        self.app.push_screen(FindScreen(session_id=sid, data_dir=self._data_dir))
+
+    def _highlighted_sid(self) -> str | None:
+        ol = self.query_one(OptionList)
+        idx = ol.highlighted
+        if idx is None or idx < 0 or idx >= len(self._sids):
+            self.app.bell()
+            return None
+        return self._sids[idx]
 
     def _reload(self) -> None:
         ol = self.query_one(OptionList)

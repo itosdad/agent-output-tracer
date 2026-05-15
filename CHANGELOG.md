@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-05-16 — Phase 3.C: Session-scoped sub-actions
+
+### Added
+
+- **`S` / `T` / `F` on a Sessions row** open Stats / Timeline / Find
+  scoped to the *highlighted* session, not "latest":
+  - `S` pushes `StatsScreen(sid)` — useful when you want the metrics
+    for a specific session without first drilling into its timeline.
+  - `T` pushes `TimelineScreen(sid)` — synonym for Enter, kept for
+    mnemonic consistency with `S` and `F`.
+  - `F` pushes `FindScreen(sid)` — vocab picker scoped to this
+    session, so the eventual `FindResultsScreen` runs `find()` against
+    the same session id, not whichever one happens to be newest at
+    the time the user picks the vocab.
+- Uppercase bindings deliberately avoid colliding with OptionList's
+  lowercase first-letter search behaviour.
+
+### Notes
+
+- Existing Enter-on-row → Timeline flow is unchanged.
+- `e` (export) was already session-scoped; this round completes the
+  set of session-scoped sub-actions.
+
+### Tests
+
+- 3 new Pilot tests cover `S` / `T` / `F` opening the right screen
+  with the highlighted session's id (not "latest" / not the first
+  row when a different one is highlighted).
+
 ## [0.11.0] — 2026-05-16 — Phase 3.B: Sticky defaults
 
 ### Added

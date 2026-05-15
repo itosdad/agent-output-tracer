@@ -1264,3 +1264,152 @@ def test_export_modal_reads_format_default(tmp_path, monkeypatch):
     assert modal._values["excerpt"] == 200
     # Output path suffix follows the chosen format.
     assert modal._values["output"].endswith(".json")
+
+
+# ---- Phase 3.C: session-scoped sub-actions ----
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_sessions_row_S_opens_stats_for_that_session(plugin_data_dir):
+    """`S` on a highlighted Sessions row pushes StatsScreen seeded with
+    that session's id — not "latest", which would matter the moment a
+    second session is captured later in the same TUI run."""
+    from textual.widgets import OptionList
+
+    from core.recorder import append_event
+    from tui.app import AOTApp
+
+    for sid in ("session-A", "session-B"):
+        append_event(
+            {
+                "v": 1,
+                "engine": "claude-code",
+                "event_type": "user_prompt",
+                "session_id": sid,
+                "ts": "2026-05-15T10:00:00.000+00:00",
+                "cwd": "/p",
+                "user_prompt_text": "hi",
+                "tool_name": None,
+                "tool_input": None,
+                "tool_response": None,
+                "agent_response_text": None,
+                "stop_reason": None,
+                "paths": [],
+                "command": None,
+                "result_bytes": 0,
+                "raw_event": {},
+            },
+            data_dir=plugin_data_dir,
+        )
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # Home → Sessions
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "SessionsScreen"
+        ol = app.screen.query_one(OptionList)
+        # Highlight the second row deliberately (not "latest").
+        ol.highlighted = 1
+        target_sid = app.screen._sids[1]
+
+        await pilot.press("S")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "StatsScreen"
+        # Stats screen carries the highlighted session id, not "latest".
+        assert app.screen.session_id == target_sid
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_sessions_row_F_opens_find_for_that_session(plugin_data_dir):
+    """`F` opens Find scoped to the highlighted session."""
+    from textual.widgets import OptionList
+
+    from core.recorder import append_event
+    from tui.app import AOTApp
+
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",
+            "event_type": "user_prompt",
+            "session_id": "find-scope-001",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        ol = app.screen.query_one(OptionList)
+        ol.highlighted = 0  # Sessions
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "SessionsScreen"
+
+        await pilot.press("F")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "FindScreen"
+        assert app.screen.session_id == "find-scope-001"
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_sessions_row_T_opens_timeline_for_that_session(plugin_data_dir):
+    """`T` is a synonym for Enter — opens the Timeline for the
+    highlighted session. Kept for mnemonic consistency with S/F."""
+    from textual.widgets import OptionList
+
+    from core.recorder import append_event
+    from tui.app import AOTApp
+
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",
+            "event_type": "user_prompt",
+            "session_id": "tl-scope-001",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        ol = app.screen.query_one(OptionList)
+        ol.highlighted = 0
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "SessionsScreen"
+
+        await pilot.press("T")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "TimelineScreen"
+        assert app.screen.session_id == "tl-scope-001"
