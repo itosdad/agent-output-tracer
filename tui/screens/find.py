@@ -17,6 +17,7 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
 from query.find import VOCAB
+from tui.config import get_history, set_history
 from tui.router import AOTScreen
 
 VOCAB_DESCRIPTIONS: dict[str, str] = {
@@ -75,7 +76,9 @@ class FindScreen(AOTScreen):
             text.append(f"{vocab:<20}", style="bold")
             text.append(f"  {desc}", style="dim")
             ol.add_option(Option(text, id=vocab))
-        ol.highlighted = 0
+        # Pre-highlight the vocab the user picked last time, if any.
+        last = get_history("find_vocab")
+        ol.highlighted = VOCAB.index(last) if last in VOCAB else 0
         ol.focus()
 
     def action_run(self) -> None:
@@ -95,6 +98,7 @@ class FindScreen(AOTScreen):
     def _run_vocab(self, vocab: str) -> None:
         if not vocab:
             return
+        set_history("find_vocab", vocab)
         from tui.screens.find_results import FindResultsScreen
 
         self.app.push_screen(

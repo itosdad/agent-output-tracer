@@ -1108,3 +1108,159 @@ async def test_timeline_syncs_theme_to_session_engine(plugin_data_dir):
         assert app.screen.__class__.__name__ == "TimelineScreen"
         # Timeline._sync_theme_to_engine ran on mount → claude theme.
         assert app.theme == CLAUDE_THEME.name
+
+
+# ---- Phase 3.B: sticky defaults (config persistence) ----
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+def test_config_roundtrip_via_env_override(tmp_path, monkeypatch):
+    """Writing through `set_history` and reading through `get_history`
+    must round-trip the same value, using $AOT_CONFIG_HOME so the
+    user's real ~/.config/aot is never touched."""
+    monkeypatch.setenv("AOT_CONFIG_HOME", str(tmp_path))
+    from tui.config import get_history, set_history
+
+    assert get_history("trace_phrase") is None
+    set_history("trace_phrase", "hooks_wiring")
+    assert get_history("trace_phrase") == "hooks_wiring"
+    # Subsequent writes preserve earlier keys (merge, not overwrite).
+    set_history("search_regex", "JWT|token")
+    assert get_history("trace_phrase") == "hooks_wiring"
+    assert get_history("search_regex") == "JWT|token"
+
+    # Persists across module reloads (i.e. it's actually on disk).
+    config_file = tmp_path / "config.toml"
+    assert config_file.exists()
+    content = config_file.read_text()
+    assert "trace_phrase" in content
+    assert "hooks_wiring" in content
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+def test_config_corrupted_file_returns_empty(tmp_path, monkeypatch):
+    """A garbled config.toml must not crash the TUI — load_config
+    returns `{}` and the screens fall back to their hardcoded defaults."""
+    monkeypatch.setenv("AOT_CONFIG_HOME", str(tmp_path))
+    (tmp_path / "config.toml").write_text("this is not valid toml = = =\n[[[")
+    from tui.config import get_history, load_config
+
+    assert load_config() == {}
+    assert get_history("trace_phrase", "fallback") == "fallback"
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_trace_prefills_from_history(plugin_data_dir, tmp_path, monkeypatch):
+    """Drilling into Trace pre-fills the Input with the last phrase the
+    user submitted, so the common "trace the same thing I just did"
+    workflow takes one keystroke instead of retyping."""
+    monkeypatch.setenv("AOT_CONFIG_HOME", str(tmp_path))
+    from textual.widgets import Input
+
+    from tui.app import AOTApp
+    from tui.config import set_history
+
+    set_history("trace_phrase", "hooks_wiring")
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("colon")
+        await pilot.pause()
+        app.screen.query_one(Input).value = "trace"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "TraceScreen"
+        inp = app.screen.query_one(Input)
+        assert inp.value == "hooks_wiring"
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_search_prefills_from_history(plugin_data_dir, tmp_path, monkeypatch):
+    """SearchScreen behaves the same way — last regex pre-fills."""
+    monkeypatch.setenv("AOT_CONFIG_HOME", str(tmp_path))
+    from textual.widgets import Input, OptionList
+
+    from tui.app import AOTApp
+    from tui.config import set_history
+
+    set_history("search_regex", "JWT|token")
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        ol = app.screen.query_one(OptionList)
+        ol.highlighted = 3  # Search
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "SearchScreen"
+        assert app.screen.query_one(Input).value == "JWT|token"
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_find_prefills_last_vocab(plugin_data_dir, tmp_path, monkeypatch):
+    """FindScreen pre-highlights the vocab the user picked last time."""
+    monkeypatch.setenv("AOT_CONFIG_HOME", str(tmp_path))
+    from textual.widgets import OptionList
+
+    from query.find import VOCAB
+    from tui.app import AOTApp
+    from tui.config import set_history
+
+    # Use a non-default vocab to make the assertion meaningful.
+    target = "repeated-reads"
+    assert target in VOCAB
+    set_history("find_vocab", target)
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        ol = app.screen.query_one(OptionList)
+        ol.highlighted = 1  # Find
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "FindScreen"
+        ol = app.screen.query_one(OptionList)
+        assert ol.highlighted == VOCAB.index(target)
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+def test_find_running_vocab_persists_history(tmp_path, monkeypatch, plugin_data_dir):
+    """Calling `_run_vocab` on the FindScreen must save the choice to
+    disk so the next launch pre-highlights it. Direct call rather than
+    a full Pilot — pushing a results screen would require seeding event
+    data unrelated to what we're testing."""
+    monkeypatch.setenv("AOT_CONFIG_HOME", str(tmp_path))
+    from tui.config import get_history
+    from tui.screens.find import FindScreen
+
+    screen = FindScreen("latest", data_dir=plugin_data_dir)
+    try:
+        screen._run_vocab("repeated-reads")
+    except Exception:
+        # Pushing a child screen without an active App raises;
+        # the persistence call we care about runs first.
+        pass
+    assert get_history("find_vocab") == "repeated-reads"
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+def test_export_modal_reads_format_default(tmp_path, monkeypatch):
+    """ExportModal opens with the saved `export_format` selected."""
+    monkeypatch.setenv("AOT_CONFIG_HOME", str(tmp_path))
+    from tui.config import set_history
+    from tui.screens.export_modal import ExportModal
+
+    set_history("export_format", "json")
+    set_history("export_safe_share", False)
+    set_history("export_excerpt", 200)
+
+    modal = ExportModal(session_short="abcd1234")
+    assert modal._values["format"] == "json"
+    assert modal._values["safe_share"] is False
+    assert modal._values["excerpt"] == 200
+    # Output path suffix follows the chosen format.
+    assert modal._values["output"].endswith(".json")

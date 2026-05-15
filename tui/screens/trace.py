@@ -18,6 +18,7 @@ from textual.binding import Binding
 from textual.containers import Vertical
 from textual.widgets import Input, Static
 
+from tui.config import get_history, set_history
 from tui.router import AOTScreen
 
 
@@ -66,7 +67,13 @@ class TraceScreen(AOTScreen):
             yield Input(placeholder="e.g. hooks_wiring", id="trace-input")
 
     def on_mount(self) -> None:
-        self.query_one(Input).focus()
+        inp = self.query_one(Input)
+        # Pre-fill with the last phrase the user typed, if any. The
+        # input is selected so a single keystroke replaces it — sticky
+        # default behaves like "remembered", not "stuck".
+        if last := get_history("trace_phrase"):
+            inp.value = last
+        inp.focus()
 
     def action_submit(self) -> None:
         self._submit(self.query_one(Input).value)
@@ -85,6 +92,7 @@ class TraceScreen(AOTScreen):
         if not TraceScreen._history or TraceScreen._history[-1] != phrase:
             TraceScreen._history.append(phrase)
             TraceScreen._history = TraceScreen._history[-50:]
+        set_history("trace_phrase", phrase)
         from tui.screens.trace_results import TraceResultsScreen
 
         self.app.push_screen(

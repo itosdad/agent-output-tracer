@@ -19,6 +19,8 @@ from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
+from tui.config import get_history, save_config
+
 _FORMATS = ["markdown", "json", "archive"]
 
 
@@ -65,11 +67,18 @@ class ExportModal(ModalScreen[dict | None]):
     def __init__(self, *, session_short: str = "session") -> None:
         super().__init__()
         self._session_short = session_short
+        # Pre-fill from saved sticky defaults; fall back to the
+        # markdown/safe-share/no-excerpt baseline if the user has never
+        # exported before.
+        fmt = get_history("export_format", "markdown")
+        if fmt not in _FORMATS:
+            fmt = "markdown"
+        suffix = {"markdown": "md", "json": "json", "archive": "tar.gz"}.get(fmt, "md")
         self._values: dict[str, Any] = {
-            "format": "markdown",
-            "safe_share": True,
-            "excerpt": 0,
-            "output": str(Path.home() / f"aot-export-{session_short}.md"),
+            "format": fmt,
+            "safe_share": bool(get_history("export_safe_share", True)),
+            "excerpt": int(get_history("export_excerpt", 0) or 0),
+            "output": str(Path.home() / f"aot-export-{session_short}.{suffix}"),
         }
         self._cursor = 0
         self._fields = ["format", "safe_share", "excerpt", "output"]
@@ -125,6 +134,18 @@ class ExportModal(ModalScreen[dict | None]):
             self._refresh_field(f)
 
     def action_submit(self) -> None:
+        # Persist the format / safe-share / excerpt knobs so the next
+        # `e` opens with the same shape. Output path is per-session and
+        # not worth pinning across sessions.
+        save_config(
+            {
+                "history": {
+                    "export_format": self._values["format"],
+                    "export_safe_share": bool(self._values["safe_share"]),
+                    "export_excerpt": int(self._values["excerpt"]),
+                }
+            }
+        )
         self.dismiss(dict(self._values))
 
     def action_cancel(self) -> None:

@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-05-16 — Phase 3.B: Sticky defaults
+
+### Added
+
+- **Sticky-default config** at `~/.config/aot/config.toml` (honours
+  `$XDG_CONFIG_HOME`, and `$AOT_CONFIG_HOME` as a test escape hatch).
+  Read via stdlib `tomllib`, written with a hand-rolled minimal
+  encoder so the wheel doesn't pull `tomli_w`.
+- **Pre-fill on screen mount** wires four common workflows to the
+  config:
+  - **Find**: the last vocab the user ran is pre-highlighted in the
+    picker, so `Enter` re-runs it.
+  - **Trace**: the Input is pre-populated with the last phrase typed.
+    The field is focused so a single keystroke replaces it — sticky
+    behaves like "remembered", not "stuck".
+  - **Search**: the Input is pre-populated with the last regex typed.
+  - **Export modal**: the format / safe-share / excerpt knobs open
+    on the values used last time. Output path stays per-session
+    (with the suffix derived from the saved format).
+- **Persist on submit** for each of the four flows. The export
+  modal's output path is intentionally NOT persisted — it's
+  per-session by design.
+
+### Notes
+
+- Theme preference is intentionally NOT persisted. `t` is a
+  per-session override; the next launch re-runs the engine-based
+  auto-detect from the newest session. This keeps a simple mental
+  model ("the TUI follows my engine, I can flip it temporarily")
+  and avoids stale overrides from one-off experiments.
+- A corrupted config.toml silently returns `{}` so a malformed file
+  cannot crash the TUI on launch.
+
+### Tests
+
+- 7 new Pilot / unit tests in `tests/unit/test_d5_tui.py` covering:
+  - `set_history` → `get_history` round-trip
+  - Corrupted file returns `{}` (no crash)
+  - Trace / Search / Find pre-fill from saved history
+  - Running a Find vocab persists the choice
+  - ExportModal opens with saved format / safe-share / excerpt
+
 ## [0.10.0] — 2026-05-16 — Phase 3.A: Engine-aware theme system
 
 ### Added

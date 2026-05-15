@@ -15,6 +15,7 @@ from textual.binding import Binding
 from textual.containers import Vertical
 from textual.widgets import Input, Static
 
+from tui.config import get_history, set_history
 from tui.router import AOTScreen
 
 
@@ -62,7 +63,10 @@ class SearchScreen(AOTScreen):
             yield Input(placeholder=r"e.g.  JWT|token", id="search-input")
 
     def on_mount(self) -> None:
-        self.query_one(Input).focus()
+        inp = self.query_one(Input)
+        if last := get_history("search_regex"):
+            inp.value = last
+        inp.focus()
 
     def action_submit(self) -> None:
         self._submit(self.query_one(Input).value)
@@ -78,6 +82,7 @@ class SearchScreen(AOTScreen):
         if not SearchScreen._history or SearchScreen._history[-1] != pattern:
             SearchScreen._history.append(pattern)
             SearchScreen._history = SearchScreen._history[-50:]
+        set_history("search_regex", pattern)
         from tui.screens.search_results import SearchResultsScreen
 
         self.app.push_screen(
