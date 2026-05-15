@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Phase B-5: `mentioned-but-not-read` command (DESIGN §7.3.8).
+  Session-level hallucination candidate extractor. Walks every
+  `agent_response`, pulls path-like tokens, and returns those the user
+  never prompted and no tool response introduced. Basename-aware
+  grounding (user `foo.md` → agent `/proj/foo.md` is grounded). CLI
+  exit codes: 0 clean, 3 candidates surfaced. 11 unit + 3 CLI
+  integration tests.
+- Phase B refactor: extract the shared path-token regex into
+  `core/references.py` (`extract_path_tokens`). `query/diff.py` updated
+  to use it, no behavior change. 246 total pass.
 - Phase B-4: `diff` command. Two-way asymmetric report on a session:
   paths the user mentioned in any prompt that the agent never touched,
   and paths the agent touched whose full path or basename never appears

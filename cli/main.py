@@ -99,6 +99,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_diff.add_argument("--session", required=True)
 
+    # mentioned-but-not-read
+    p_mbnr = subparsers.add_parser(
+        "mentioned-but-not-read",
+        help="Extract path-like tokens the agent mentioned but no visible source introduced.",
+    )
+    p_mbnr.add_argument("--session", required=True)
+
     # why
     p_why = subparsers.add_parser(
         "why",
@@ -234,6 +241,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: {exc}", file=sys.stderr)
             return 2
         return 0
+
+    if args.cmd == "mentioned-but-not-read":
+        from core.session_io import SessionNotFoundError
+        from core.session_resolver import (
+            AmbiguousSessionSpec,
+            SessionSpecNotFound,
+            resolve_session_id,
+        )
+        from query.mentioned_but_not_read import mentioned_but_not_read
+
+        try:
+            resolved = resolve_session_id(args.session, data_dir=args.data_dir)
+            result = mentioned_but_not_read(resolved, data_dir=args.data_dir, stream=sys.stdout)
+        except (SessionNotFoundError, SessionSpecNotFound, AmbiguousSessionSpec) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        # Exit 3 if any candidates surfaced (script can branch).
+        return 3 if result.get("candidates") else 0
 
     if args.cmd == "why":
         from core.session_io import SessionNotFoundError
