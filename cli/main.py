@@ -92,6 +92,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print the most-recent session id.",
     )
 
+    # why
+    p_why = subparsers.add_parser(
+        "why",
+        help="Surface the context that may have caused a specific event.",
+    )
+    p_why.add_argument("--session", required=True)
+    p_why.add_argument("--path", help="Filter by a path the event touches")
+    p_why.add_argument("--tool", help="Filter by tool_name (Read, Bash, …)")
+    p_why.add_argument(
+        "--ts",
+        help="Disambiguate by timestamp (HH:MM:SS substring match)",
+    )
+    p_why.add_argument(
+        "--event-index",
+        type=int,
+        help="Direct address by 0-based events.jsonl index",
+    )
+
     # trace
     p_trace = subparsers.add_parser(
         "trace",
@@ -191,6 +209,34 @@ def main(argv: Sequence[str] | None = None) -> int:
         except SessionSpecNotFound as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
+        return 0
+
+    if args.cmd == "why":
+        from core.session_io import SessionNotFoundError
+        from core.session_resolver import (
+            AmbiguousSessionSpec,
+            SessionSpecNotFound,
+            resolve_session_id,
+        )
+        from query.why import EventNotFound, why
+
+        try:
+            resolved = resolve_session_id(args.session, data_dir=args.data_dir)
+            why(
+                resolved,
+                path=args.path,
+                tool=args.tool,
+                ts=args.ts,
+                event_index=args.event_index,
+                data_dir=args.data_dir,
+                stream=sys.stdout,
+            )
+        except (SessionNotFoundError, SessionSpecNotFound, AmbiguousSessionSpec) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        except EventNotFound as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
         return 0
 
     if args.cmd == "trace":

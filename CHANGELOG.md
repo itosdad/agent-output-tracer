@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Phase B-3: `why` command. Identifies a target event by `--path` /
+  `--tool` / `--ts` / `--event-index` and surfaces (a) the three events
+  immediately before, (b) the most-recent user_prompt prior, and
+  (c) a "Glob origin" — a prior `post_tool` Glob whose response
+  contained the target's path (catches "agent picked this from a Glob
+  result without explicit user mention"). 14 unit + 4 CLI integration
+  tests. 218 total pass.
 - Phase B-2: `trace` command. Given `--session <spec> --output <phrase>`,
   finds the first `agent_response` containing the phrase, walks back
   through prior events, classifies each prior Read by whether its
