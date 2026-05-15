@@ -224,13 +224,17 @@ the standard 3-line error pointing at the install command.
 pipx (replaces the existing install with the extra wired in):
 ```bash
 pipx install --force \
-  'git+https://github.com/itosdad/agent-output-tracer.git@v0.6.0#egg=agent-output-tracer[tui]'
+  'agent-output-tracer[tui] @ git+https://github.com/itosdad/agent-output-tracer.git@v0.6.0'
 ```
 
-Or inject `textual` / `watchdog` into the existing pipx env:
+Or inject `textual` / `watchdog` into an existing pipx install:
 ```bash
 pipx inject agent-output-tracer textual watchdog
 ```
+
+> Note: the legacy `#egg=name[extras]` fragment syntax is rejected by
+> modern pip / pipx (PEP 508 supersedes it). Use the `name[extras] @ URL`
+> form shown above.
 
 Editable / venv install:
 ```bash
