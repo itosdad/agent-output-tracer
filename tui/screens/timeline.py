@@ -24,11 +24,14 @@ follow.
 
 from __future__ import annotations
 
+import threading
+
 from rich.text import Text
 from textual.binding import Binding
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
+from core.follower import follow_events
 from core.session_io import list_sessions, load_events
 from core.time_utils import short_time, truncate
 from tui.router import AOTScreen
@@ -64,6 +67,9 @@ class TimelineScreen(AOTScreen):
         # OptionList. Lets us resolve `option.id` (a stringified index
         # into _events) back to the underlying event.
         self._follow: bool = False
+        # Follower thread + stop flag, owned by the screen instance.
+        self._follower_thread: threading.Thread | None = None
+        self._follower_stop = threading.Event()
         super().__init__()
 
     def breadcrumb_segments(self) -> list[str]:
@@ -139,21 +145,54 @@ class TimelineScreen(AOTScreen):
         )
 
     def action_toggle_follow(self) -> None:
-        # Phase 1: snap to bottom on demand. Live follower thread is
-        # already implemented in core.follower and will be wired here
-        # as part of the chrome status indicator in Phase 2.
         self._follow = not self._follow
         self._reload()
         ol = self.query_one(OptionList)
-        if self._follow and ol.option_count > 0:
-            ol.highlighted = ol.option_count - 1
-        # update footer hint label
+        if self._follow:
+            if ol.option_count > 0:
+                ol.highlighted = ol.option_count - 1
+            self._start_follower()
+        else:
+            self._stop_follower()
         try:
             from tui.widgets.footer import FooterHints
 
             self.query_one(FooterHints).set_hints(self.footer_hints())
         except Exception:
             pass
+
+    def on_unmount(self) -> None:
+        # Drilling away or quitting must shut the polling thread down,
+        # otherwise it keeps tailing events.jsonl in the background.
+        self._stop_follower()
+
+    def _start_follower(self) -> None:
+        if self._follower_thread and self._follower_thread.is_alive():
+            return
+        self._follower_stop.clear()
+        sid = self.session_id
+        data_dir = self._data_dir
+
+        def runner() -> None:
+            try:
+                for _ in follow_events(
+                    sid,
+                    data_dir=data_dir,
+                    from_start=False,
+                    poll_interval=0.5,
+                    stop_predicate=self._follower_stop.is_set,
+                ):
+                    self.app.call_from_thread(self._reload)
+            except Exception:
+                # Best-effort — never raise into the TUI loop.
+                pass
+
+        self._follower_thread = threading.Thread(target=runner, daemon=True)
+        self._follower_thread.start()
+
+    def _stop_follower(self) -> None:
+        self._follower_stop.set()
+        self._follower_thread = None
 
     def action_search(self) -> None:
         # Phase 2 will mount an InlinePrompt; for now beep.

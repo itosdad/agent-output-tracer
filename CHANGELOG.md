@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.7] — 2026-05-15 — Phase 2.H: Live follow (closes Phase 2)
+
+### Added
+
+- **Timeline live follow.** `o` on Timeline now actually tails the
+  session's events.jsonl via `core.follower.follow_events` in a daemon
+  thread. New events are dispatched to the main loop with
+  `app.call_from_thread`, the OptionList refreshes, and the cursor
+  snaps to the latest row. Toggling `o` again stops the polling
+  thread. Drilling away (push) or quitting (`q`) also stops it via
+  `on_unmount` so the file handle never leaks.
+
+This commit closes Phase 2 of the TUI roadmap. All 17 CLI commands
+now have a TUI surface (Sessions / Timeline / EventDetail / Find /
+Trace / Search / Stats / Doctor / Note / Export / live follow) and
+the command palette routes power-user syntax across them.
+
 ## [0.9.6] — 2026-05-15 — Phase 2.G: Command palette `:`
 
 ### Added
@@ -634,6 +651,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.9.7]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.7
 [0.9.6]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.6
 [0.9.5]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.5
 [0.9.4]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.4
