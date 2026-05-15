@@ -24,31 +24,16 @@ bridges incl. OTel, safe-share `aot export`). 417 tests pass on Python
 
 ---
 
-## Quick install
+## Install
 
-**Claude Code** — in a session, run:
+All install / update / uninstall flows — plugin (Claude Code + Codex),
+CLI binary, optional `[tui]` extra, plugin data dir resolution,
+engine-specific caveats, troubleshooting — live in
+[`docs/INSTALL.md`](docs/INSTALL.md).
 
-```
-/plugin marketplace add itosdad/agent-output-tracer
-/plugin install agent-output-tracer@itosdad-agent-output-tracer
-```
-
-**Codex CLI** (≥ 0.128) — enable `codex_hooks = true` in
-`~/.codex/config.toml`, then `codex plugin marketplace add itosdad/agent-output-tracer`.
-
-**CLI binary** (needed only for `aot replay` / `aot grep` etc.):
-
-```bash
-pipx install git+https://github.com/itosdad/agent-output-tracer.git@v0.6.0
-
-# Optional side-channel TUI:
-pipx install 'git+https://github.com/itosdad/agent-output-tracer.git@v0.6.0#egg=agent-output-tracer[tui]'
-```
-
-Installs both `agent-output-tracer` and the short `aot` alias.
-
-Full setup — dev mode, verify procedure, troubleshooting, version
-requirements, Codex caveats — lives in [`docs/INSTALL.md`](docs/INSTALL.md).
+In short: install the plugin in your engine (one command in Claude
+Code / Codex), then `pipx install` the CLI to query the captured
+data. The TUI is an optional add-on.
 
 ---
 
@@ -113,7 +98,7 @@ aot tail --session latest                            # follow events.jsonl
 aot tail --session latest --format stream-json       # JSON-Lines pipe
 aot replay --session latest --watch                  # replay then keep following
 
-# Side-channel TUI (requires `pip install 'agent-output-tracer[tui]'`)
+# Side-channel TUI — see INSTALL.md "Optional extra: [tui]"
 aot tui                                              # opens against `latest`
 aot tui --session a3f2
 ```
