@@ -43,9 +43,11 @@ dev = [
 agent-output-tracer = "cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/agent-output-tracer/agent-output-tracer"
-Documentation = "https://github.com/agent-output-tracer/agent-output-tracer/tree/main/docs"
-Source = "https://github.com/agent-output-tracer/agent-output-tracer"
+Homepage = "https://github.com/itosdad/agent-output-tracer"
+Documentation = "https://github.com/itosdad/agent-output-tracer/tree/main/docs"
+Source = "https://github.com/itosdad/agent-output-tracer"
+Issues = "https://github.com/itosdad/agent-output-tracer/issues"
+Changelog = "https://github.com/itosdad/agent-output-tracer/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 packages = ["adapters", "core", "query", "analyzer", "cli"]

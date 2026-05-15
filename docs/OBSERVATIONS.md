@@ -84,7 +84,46 @@
 
 ---
 
-## 運用ルール
+---
+
+## 2026-05-15 — Phase A-11 GitHub 公開準備時の install フロー verify
+
+### コンテキスト
+
+GitHub repo `itosdad/agent-output-tracer` 公開準備中。設計 doc §14.3 に「GitHub repo 直接 (`claude plugin install <git-url>`)」と書いてあったが、公式 docs verify で**そのコマンドは存在しないこと**が判明。claude-code-guide subagent 経由で公式 docs 引用を取得。
+
+### 一次資料
+
+- https://code.claude.com/docs/en/discover-plugins.md §Install plugins
+- https://code.claude.com/docs/en/plugin-marketplaces.md §Marketplace schema / Plugin sources / Version resolution
+- https://code.claude.com/docs/en/plugins-reference.md §Version management
+
+### 観察
+
+1. **`claude plugin install <git-url>` は存在しない**
+   - 公式 install フローは **2 段階**: `/plugin marketplace add owner/repo` → `/plugin install plugin-name@marketplace-name`
+   - 反映: `docs/DESIGN.md` §14.3 を訂正、`docs/INSTALL.md` の GitHub install 節を marketplace flow に書き換え
+
+2. **同 repo 内 plugin への source 指定は相対パス `"./"` でよい**
+   - `marketplace.json` の `plugins[].source` は `string | object` の union
+   - 同 repo の plugin を指す最小形は `"source": "./"` （repo root 解決、`.claude-plugin/` 配下ではない点に注意）
+   - 反映: `.claude-plugin/marketplace.json` 新規追加
+
+3. **marketplace.json の最小必須 fields**
+   - top-level: `name` (kebab-case) / `owner` (object with `name` required) / `plugins` (array)
+   - plugins entry 必須: `name` / `source`
+   - 反映: `.claude-plugin/marketplace.json`
+
+4. **version 解決順は `plugin.json` > `marketplace.json` > git SHA**
+   - 両方に version を書くと plugin.json が silent に勝つ（公式 docs に warning あり）
+   - 本 plugin は `plugin.json` のみで version 管理する方針
+   - 反映: `docs/DESIGN.md` §14.3 Update flow
+
+### 未決
+
+- **marketplace-less 直接 install (`/plugin add owner/repo` 等) があるか** — 公式 docs 上未確認。Phase A-11 実機 verify 推奨だが現状の marketplace flow で目的達成できるので低優先
+
+### 運用ルール
 
 - 実機検証で「設計 doc / コードと違った」ことがあれば、ここに 1 ブロック追加する
 - 反映先 (doc / code path) を明記する。後から「この観察はどこに反映されている？」を辿れるように

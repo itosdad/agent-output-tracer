@@ -1528,17 +1528,17 @@ def test_capture_overhead():
 
 ---
 
-# 14. 公開リリース戦略（optional）
+# 14. 公開リリース戦略
 
 ## 14.1 当面（Phase A-B）
 
-- 個人 / 小規模 team の local install
-- private repo、信頼 user に共有
+- 個人 / 小規模 team による local install + GitHub install
+- public repo (`itosdad/agent-output-tracer`)、信頼 user に共有
 - feedback 収集
 
-## 14.2 Marketplace 公開（Phase C 後）
+## 14.2 公式 Marketplace 公開（Phase C 後の選択肢）
 
-公式 plugin marketplace 登録要件：
+公式 Claude Code marketplace に「登録された marketplace」として収録される場合の要件（公式 docs 未確認の部分は Phase C-Late で再確認）:
 
 1. `plugin.json` 必須 metadata 完備
 2. README に screenshot + workflow 例
@@ -1546,10 +1546,36 @@ def test_capture_overhead():
 4. GitHub Actions CI（test / lint）
 5. semantic versioning
 
-## 14.3 配布チャネル
+## 14.3 配布チャネル（実機 verify 済 / 2026-05-15）
 
-- 第一: 公式 Claude Code marketplace
-- 第二: GitHub repo 直接 (`claude plugin install <git-url>`)
+**正しい install フロー**（公式 docs 確認済、claude-code-guide subagent 経由）:
+
+```
+/plugin marketplace add itosdad/agent-output-tracer
+/plugin install agent-output-tracer@itosdad-agent-output-tracer
+```
+
+つまり「GitHub repo を marketplace として登録 → その中の plugin を install」の **2 段階フロー**。「`claude plugin install <git-url>` の 1 行 install」は公式コマンドとして**存在しない** (旧版 §14.3 の記述は推測誤り、訂正済)。
+
+この 2 段階を成立させるため、本 repo は同時に:
+
+- `.claude-plugin/plugin.json` — plugin 本体定義
+- `.claude-plugin/marketplace.json` — この repo が 1 plugin だけ収録する個人 marketplace である宣言
+
+の **両方** を root に配置する（`marketplace.json` の `plugins[0].source = "./"` で同 repo の plugin を指す）。
+
+### Update flow
+
+公式 version 解決順:
+1. `plugin.json` の `version` field
+2. `marketplace.json` plugin entry の `version` field（plugin.json と齟齬したら plugin.json が silent に勝つので片方に集約）
+3. git commit SHA
+
+本 plugin は `plugin.json` の `version` を semver で明示 (`"0.1.0"` 等) し、release ごとに bump + git tag (`v0.1.0`) を打つ運用。user 側 update は `/plugin update agent-output-tracer@itosdad-agent-output-tracer`。
+
+### dev mode との関係
+
+dev mode (`claude --plugin-dir ~/work/agent-output-tracer`) は marketplace.json を経由せず source path 直参照。`/reload-plugins` で commit を即反映可能、version bump 不要。本番運用 (`/plugin marketplace add`) と排他。
 
 ---
 

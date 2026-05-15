@@ -5,36 +5,68 @@ CLI**. The runtime hooks themselves are pure Python stdlib (3.9+ compatible)
 so they run with whatever `python3` is on the user's `PATH`. The CLI tool
 (`agent-output-tracer ...`) targets **Python 3.11+**.
 
-## Claude Code
+## Claude Code — install from GitHub (recommended)
 
-### 1. Clone
+This repo is configured to serve as a one-plugin personal marketplace, so the
+two-step Claude Code marketplace flow works directly against it.
 
-```bash
-git clone <repo-url> ~/work/agent-output-tracer
-cd ~/work/agent-output-tracer
+In a Claude Code session, run:
+
+```
+/plugin marketplace add itosdad/agent-output-tracer
+/plugin install agent-output-tracer@itosdad-agent-output-tracer
 ```
 
-### 2. (optional) Install the CLI
+What this does:
 
-Required for the user-facing `agent-output-tracer replay / grep / ...`
-commands. Not required for the hook capture path to work.
+1. `/plugin marketplace add` clones the repo, reads
+   `.claude-plugin/marketplace.json`, and registers the catalog.
+2. `/plugin install <name>@<marketplace>` installs the listed plugin.
+
+Verify with `/plugin` — `agent-output-tracer` should be listed as enabled
+with 5 hooks (UserPromptSubmit / PreToolUse / PostToolUse / Stop /
+SessionEnd) registered.
+
+To update later (after the upstream repo cuts a new release):
+
+```
+/plugin update agent-output-tracer@itosdad-agent-output-tracer
+```
+
+Version is resolved from `plugin.json` (`version: 0.1.0` etc.); the project
+bumps it whenever there's something users should re-fetch.
+
+### Install the CLI (`agent-output-tracer` binary, optional)
+
+The plugin captures sessions without the CLI. The CLI is needed only for
+the user-facing `replay` / `grep` / `state-at` / `list` / `latest` commands.
 
 ```bash
+pipx install git+https://github.com/itosdad/agent-output-tracer.git@v0.1.0
+# or, for local development:
+git clone https://github.com/itosdad/agent-output-tracer ~/work/agent-output-tracer
+cd ~/work/agent-output-tracer
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-### 3. Install the plugin
+## Claude Code — local-path / dev mode
+
+For working on the plugin itself, skip the marketplace flow and load the
+repo directly. Useful when iterating on `hooks/` or `query/` code: hot
+reload with `/reload-plugins`, no version bump needed.
 
 ```bash
-claude plugin install ~/work/agent-output-tracer
-```
+git clone https://github.com/itosdad/agent-output-tracer ~/work/agent-output-tracer
+cd ~/work/agent-output-tracer
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
 
-Or, for hot-reload development:
-
-```bash
 claude --plugin-dir ~/work/agent-output-tracer
 ```
+
+After edits in `~/work/agent-output-tracer/`, run `/reload-plugins` inside
+the Claude Code session to pick the new code up without restarting.
 
 ### 4. Verify
 

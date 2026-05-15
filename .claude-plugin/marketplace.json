@@ -1,0 +1,13 @@
+{
+  "name": "itosdad-agent-output-tracer",
+  "owner": {
+    "name": "itosdad"
+  },
+  "plugins": [
+    {
+      "name": "agent-output-tracer",
+      "source": "./",
+      "description": "Universal AI agent session forensic debugger. Replay, trace, and query agent behavior when output looks wrong."
+    }
+  ]
+}
