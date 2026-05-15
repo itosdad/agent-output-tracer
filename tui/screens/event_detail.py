@@ -65,18 +65,22 @@ class EventDetailScreen(AOTScreen):
         ]
 
     def footer_hints(self) -> list[tuple[str, str]]:
+        # Keep this row narrow — half-desktop layouts can be as tight
+        # as 72 cols, and a 1-row footer that wraps looks broken.
+        # Less-essential hints (`y` yank, `n` note) are still bound,
+        # just not advertised here.
         return [
-            ("j/k", "next/prev"),
+            ("↑↓", "step"),
             ("r", "raw"),
-            ("s", "sanitised"),
-            ("y", "yank"),
-            ("n", "note"),
+            ("s", "safe"),
             ("enter", "related"),
             ("esc", "back"),
         ]
 
     def compose_body(self):
-        yield Static("(loading)", id="event-detail", expand=True)
+        # markup=False keeps Rich Text styles in `update()` exact;
+        # shrink=False + expand keeps wrapping on for narrow terminals.
+        yield Static("(loading)", id="event-detail", expand=True, markup=False)
 
     def on_mount(self) -> None:
         self._refresh_view()

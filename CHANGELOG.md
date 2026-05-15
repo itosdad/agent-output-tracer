@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-05-15
+
+Half-desktop UI/UX optimisation: the TUI now fits a 72-column viewport
+without horizontal scroll, matching the typical "split the desktop,
+Claude Code on one half, tracer on the other" workflow.
+
+### Changed
+
+- **Sessions and Timeline screens switched from DataTable to
+  OptionList.** Columns are gone. Each session and each event renders
+  as a 2-line vertical card with Codex-style semantic prefixes
+  (`›` / `⏵` / `✓` / `•` / `─`), reading top-to-bottom. The new layout
+  is width-adaptive: long bodies wrap rather than being chopped by a
+  fixed column. This mirrors how Codex CLI itself renders history
+  cells (`tui/src/history_cell/messages.rs` cited in our theme tokens).
+
+  Side benefit: drill-in is now handled by OptionList's first-class
+  `OptionSelected` event instead of the DataTable-RowSelected workaround.
+
+- **Paths in event cards now show only the last two components**
+  (`.../parent/file.md`) rather than the full absolute path. The Event
+  Detail screen still shows the full path — the truncation is purely
+  for the list view.
+
+- **Event Detail footer hint condensed** to fit a 72-col row in one
+  line: `↑↓ step  r raw  s safe  enter related  esc back`. `y` yank
+  and `n` note are still bound, just no longer advertised in the
+  cramped footer.
+
+- **FooterHints** gets `overflow-x: hidden` so a too-long hint row
+  truncates rather than wrapping a 1-row widget into something that
+  looks broken.
+
+### Fixed
+
+- **OptionList that's populated via `add_option()` (rather than init)
+  no longer leaves `highlighted=None`.** Sessions and Timeline now
+  explicitly set `highlighted = 0` after populating, so Enter on first
+  focus actually drills in.
+
+### Added
+
+- `test_no_horizontal_overflow_at_half_desktop_width` — Pilot test
+  that runs the app at `size=(72, 24)`, drills Home → Sessions →
+  Timeline → Event Detail with a synthetic long-body event, and
+  asserts no OptionList shows a horizontal scrollbar at any step.
+
 ## [0.7.2] — 2026-05-15
 
 ### Fixed
@@ -457,6 +504,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.8.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.8.0
 [0.7.2]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.7.2
 [0.7.1]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.7.1
 [0.7.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.7.0

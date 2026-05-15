@@ -2,6 +2,10 @@
 
 Every screen exposes its own keybinds via `footer_hints()`. The
 contents of this widget are refreshed when the active screen changes.
+
+Designed for half-desktop layouts (~72 cols): the renderer truncates
+overflow with `…` rather than letting Rich wrap a 1-row widget into
+something that looks broken.
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ class FooterHints(Widget):
         height: 1;
         padding: 0 1;
         background: $surface;
+        overflow-x: hidden;
     }
     """
 

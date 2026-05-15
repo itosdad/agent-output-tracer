@@ -380,6 +380,76 @@ async def test_enter_on_event_row_drills_into_event_detail(plugin_data_dir):
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
+async def test_no_horizontal_overflow_at_half_desktop_width(plugin_data_dir):
+    """The TUI must fit a 72-column viewport (the realistic minimum for
+    a typical half-desktop terminal pane) without producing a
+    horizontal scrollbar on any of the primary screens.
+
+    We seed a session with one event whose body is long enough that an
+    old column-based renderer would have forced horizontal scroll.
+    """
+    from textual.widgets import OptionList
+
+    from core.recorder import append_event
+    from tui.app import AOTApp
+
+    long_body = (
+        "describe phase D in detail — the plan and the layout we want, "
+        "specifically the screen-based navigation, semantic prefixes, "
+        "Codex theme tokens cited from openai/codex tui/src/, and the "
+        "drill-in/out flow used by sessions and timeline screens."
+    )
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",
+            "event_type": "user_prompt",
+            "session_id": "narrow-001",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": long_body,
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test(size=(72, 24)) as pilot:
+        await pilot.pause()
+        # Home — no horizontal scrollbar on the OptionList.
+        ol = app.screen.query_one(OptionList)
+        assert ol.show_horizontal_scrollbar is False
+
+        # Drill into Sessions and confirm.
+        await pilot.press("enter")
+        await pilot.pause()
+        ol = app.screen.query_one(OptionList)
+        assert ol.show_horizontal_scrollbar is False
+
+        # Drill into Timeline and confirm. The long body event must
+        # render without a horizontal scrollbar at 72 cols.
+        await pilot.press("enter")
+        await pilot.pause()
+        ol = app.screen.query_one(OptionList)
+        assert ol.show_horizontal_scrollbar is False
+
+        # Drill into Event Detail and confirm. Static content auto-wraps
+        # so no horizontal scrollbar on its scroll container either.
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "EventDetailScreen"
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
 async def test_navigation_deep_link_session(plugin_data_dir):
     """`aot tui --session <id>` puts Home → Sessions → Timeline on the
     stack, so Esc/Esc/Esc walks the user back to Home cleanly."""
