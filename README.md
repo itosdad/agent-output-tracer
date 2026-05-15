@@ -24,47 +24,26 @@ macOS). See [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Quick install
 
-### Claude Code
+**Claude Code** — in a session, run:
 
 ```
 /plugin marketplace add itosdad/agent-output-tracer
 /plugin install agent-output-tracer@itosdad-agent-output-tracer
 ```
 
-Verify in a fresh session: `/plugin` should list `agent-output-tracer` as
-enabled with 8 hooks registered.
+**Codex CLI** (≥ 0.128) — enable `codex_hooks = true` in
+`~/.codex/config.toml`, then `codex plugin marketplace add itosdad/agent-output-tracer`.
 
-### Codex CLI (≥ 0.128)
-
-Enable the feature flag first (Codex silently ignores hooks otherwise):
+**CLI binary** (needed only for `aot replay` / `aot grep` etc.):
 
 ```bash
-mkdir -p ~/.codex
-cat >> ~/.codex/config.toml <<'EOF'
-[features]
-codex_hooks = true
-EOF
+pipx install git+https://github.com/itosdad/agent-output-tracer.git@v0.5.0
 ```
 
-Then install:
+Installs both `agent-output-tracer` and the short `aot` alias.
 
-```
-codex plugin marketplace add itosdad/agent-output-tracer
-```
-
-### CLI binary
-
-The plugin captures sessions on its own. The CLI is what you use to query
-captured data:
-
-```bash
-pipx install git+https://github.com/itosdad/agent-output-tracer.git@v0.4.0
-```
-
-Two binaries are installed: `agent-output-tracer` (canonical) and `aot`
-(short alias). The rest of this README uses `aot`.
-
-Detailed install / verify / troubleshoot: [`docs/INSTALL.md`](docs/INSTALL.md).
+Full setup — dev mode, verify procedure, troubleshooting, version
+requirements, Codex caveats — lives in [`docs/INSTALL.md`](docs/INSTALL.md).
 
 ---
 
