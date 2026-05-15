@@ -1,0 +1,17 @@
+{
+  "name": "agent-output-tracer",
+  "version": "0.1.0",
+  "description": "Universal AI agent session forensic debugger. Replay, trace, and query agent behavior when output looks wrong.",
+  "author": {
+    "name": "agent-output-tracer contributors"
+  },
+  "license": "MIT",
+  "keywords": [
+    "agent-debugging",
+    "session-forensic",
+    "ai-observability",
+    "codex",
+    "trace"
+  ],
+  "hooks": "./hooks/hooks.json"
+}
