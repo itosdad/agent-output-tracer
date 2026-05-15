@@ -1,5 +1,15 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session_start.py\""
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
@@ -12,7 +22,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Read|Glob|Grep|Edit|Write|MultiEdit|Bash",
+        "matcher": "Read|Glob|Grep|Edit|Write|MultiEdit|Bash|apply_patch",
         "hooks": [
           {
             "type": "command",
@@ -23,7 +33,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Read|Glob|Grep|Edit|Write|MultiEdit|Bash",
+        "matcher": "Read|Glob|Grep|Edit|Write|MultiEdit|Bash|apply_patch",
         "hooks": [
           {
             "type": "command",
@@ -48,6 +58,26 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session_end.py\""
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/pre_compact.py\""
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/post_compact.py\""
           }
         ]
       }

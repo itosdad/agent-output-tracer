@@ -34,3 +34,30 @@ def test_dispatch_unknown_engine_returns_none():
 
 def test_supported_engines_contains_claude_code():
     assert "claude-code" in SUPPORTED_ENGINES
+
+
+def test_dispatch_codex():
+    raw = {
+        "session_id": "cdx-1",
+        "hook_event_name": "user_prompt_submit",
+        "cwd": "/p",
+        "model": "gpt-5",
+        "permission_mode": "default",
+        "transcript_path": "/tmp/c.jsonl",
+        "turn_id": "t1",
+        "prompt": "hello codex",
+    }
+    out = normalize(
+        "codex",
+        raw,
+        now=lambda: datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    assert out is not None
+    assert out["engine"] == "codex"
+    assert out["event_type"] == "user_prompt"
+    assert out["user_prompt_text"] == "hello codex"
+    assert out["turn_id"] == "t1"
+
+
+def test_supported_engines_contains_codex():
+    assert "codex" in SUPPORTED_ENGINES

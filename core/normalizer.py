@@ -12,9 +12,11 @@ from datetime import datetime
 from typing import Any
 
 from adapters import claude_code as _claude_code
+from adapters import codex as _codex
 
 SUPPORTED_ENGINES: dict[str, Callable] = {
     "claude-code": _claude_code.normalize_event,
+    "codex": _codex.normalize_event,
 }
 
 

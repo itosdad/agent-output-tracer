@@ -14,13 +14,26 @@ SESSIONS_SUBDIR = "sessions"
 def resolve_data_dir(explicit=None):
     """Return the plugin data directory as a Path.
 
-    Order: explicit param → `CLAUDE_PLUGIN_DATA` env → None.
+    Lookup order (first hit wins):
+      1. `explicit` argument (e.g. `--data-dir` from the CLI)
+      2. `CLAUDE_PLUGIN_DATA` env (Claude Code, and Codex's
+         Claude-compat layer per DESIGN §3.2.8)
+      3. `CODEX_PLUGIN_DATA` env (forward-compatible — if a future Codex
+         release introduces its own env var, just export this and the
+         hook picks it up without code changes)
+      4. `~/.codex/plugins/data/agent-output-tracer/` if it exists
+         (matches Codex's documented install cache layout)
+      5. None — caller must supply `--data-dir` explicitly
     """
     if explicit is not None:
         return Path(explicit)
-    env = os.environ.get("CLAUDE_PLUGIN_DATA")
-    if env:
-        return Path(env)
+    for var in ("CLAUDE_PLUGIN_DATA", "CODEX_PLUGIN_DATA"):
+        env = os.environ.get(var)
+        if env:
+            return Path(env)
+    codex_default = Path.home() / ".codex" / "plugins" / "data" / "agent-output-tracer"
+    if codex_default.exists():
+        return codex_default
     return None
 
 

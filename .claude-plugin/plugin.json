@@ -1,6 +1,6 @@
 {
   "name": "agent-output-tracer",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Universal AI agent session forensic debugger. Replay, trace, and query agent behavior when output looks wrong.",
   "author": {
     "name": "agent-output-tracer contributors"

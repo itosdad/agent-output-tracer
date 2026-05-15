@@ -7,7 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.3.0] — 2026-05-15
+## [0.4.0] — 2026-05-15
+
+Phase C — Codex CLI support. Codex sessions now record alongside Claude
+Code through the same hook script set, with runtime engine detection
+choosing the right adapter. 328 tests pass on Python 3.13; hook runtime
+still 3.9-compatible.
+
+### Added
+
+- Phase C-1: `adapters/codex.py` — normalize 7 Codex hook events
+  (`session_start` / `user_prompt_submit` / `pre_tool_use` /
+  `post_tool_use` / `stop` / `pre_compact` / `post_compact`). Codex's
+  `permission_request` is observed by Codex but intentionally not
+  recorded (design §3.2.2). `core/normalizer.py` adds `"codex"` to
+  `SUPPORTED_ENGINES`. 20 unit tests.
+- Phase C-2: single `hooks/hooks.json` covers both engines. New scripts
+  `hooks/session_start.py` / `pre_compact.py` / `post_compact.py` for
+  the Codex-only event names. `hooks/_runner.py` detects engine from
+  the payload (Codex emits `permission_mode` on every event; Claude
+  Code does not) and dispatches to the right adapter. PreToolUse /
+  PostToolUse matcher now also covers Codex's `apply_patch`.
+- Phase C-3 / C-10: `docs/INSTALL.md` Codex section — marketplace add,
+  `[features] codex_hooks = true` feature flag (required; without it
+  Codex silently ignores hooks), version requirements (≥ 0.128 for
+  plugin-bundled hooks, ≥ 0.129 for compaction events), trusted-project
+  caveat, env var resolution order.
+- Phase C-4: `core/path_utils.resolve_data_dir` lookup order extended
+  to `CLAUDE_PLUGIN_DATA` → `CODEX_PLUGIN_DATA` → default Codex install
+  cache path. Forward-compatible if a future Codex release ships its
+  own native env var.
+- Phase C-5: no active SessionEnd synthesis. `metadata.json` is
+  rewritten on every appended event (Phase A-3 behavior), so
+  `ts_end` / counters stay current without a finalize step — Codex's
+  lack of a session-end signal is a non-issue in practice.
+- Phase C-6: PostToolUse limitation (Bash / `apply_patch` / MCP only)
+  documented; adapter still extracts `command` for Bash and
+  `file_path` / `path` for the other Codex tool shapes.
+- Phase C-7: 8 integration tests exercising real hook-script
+  subprocesses with Codex-shaped payloads. Engine-detection regression
+  test confirms a Claude-shaped payload still routes to the Claude
+  adapter even though the script is now bi-engine.
+- Phase C-8: cross-engine `session_id` collision policy — UUID
+  conventions on both sides make real collisions vanishingly rare;
+  operators that need stronger separation pass distinct `--data-dir`.
+- Phase C-9: Codex `turn_id` propagated through normalization onto
+  the normalized event when present (omitted for non-turn-scoped
+  events like SessionStart / PreCompact / PostCompact).
+
+
 
 Phase B-6 through B-9 — graphing, bundled forensic export, anomaly
 hints, and retention/GC. 296 tests pass on Python 3.13; hook runtime
@@ -183,6 +231,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.4.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.4.0
 [0.3.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.3.0
 [0.2.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.2.0
 [0.1.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.1.0

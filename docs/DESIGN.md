@@ -337,12 +337,11 @@ forensic 完全記録のため以下を採用：
 
 公式 generated schema directory および公式 docs の event リストに **`SessionEnd` は存在しない**。Codex で session 終了 trigger は取れない。
 
-**plugin 側の対応方針**:
+**実装方針 (Phase C-5 着地点)**:
 
-- **Codex では `Stop` event + `session_id` グルーピングで擬似的に session 完結を扱う**
-- Stop event は turn 終了ごとに発火するため、「最後の Stop event 後 N 分 idle」を session 終了の proxy とする
-- または `SessionStart` の `source="clear"` で session 切替を検知し、それを「前 session の終了」として扱う
-- 完全な session 単位 rollup は遅延 batch（次回 SessionStart 時に前 session を finalize）で実装
+- `metadata.json` は `core/recorder.append_event` が **毎 event で再書き出し** するため、`ts_end` / `tool_calls_total` / counters は常に最新。明示的な session_end イベントが無くても、operator が `replay --session latest` した時点でその session の最終 state が見える。
+- 「Stop + N 分 idle で擬似 session_end を合成する」 active な finalize loop は実装しない。recorder 側で十分 self-healing なため、追加コードの維持コストに見合わない。
+- 必要なら下流で `metadata.ts_end` を観察すれば idle 判定はクライアント側で計算可能（query/state-at が既に提供）。
 
 ### 3.2.6 ask 未サポート（経験的観察と一致）
 
@@ -425,7 +424,8 @@ Claude Code の `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` 完全相当�
 | `SessionStart` 存在 | 未確認 | あり（`source` enum）| 採用 |
 | `SessionEnd` 存在 | 想定 | **なし** | Stop + session_id でグルーピング、または SessionStart `source="clear"` で擬似検知 |
 | `session_id` field 存在 | 未確認 | あり（string、format 未規定）| 採用 |
-| `turn_id` field | 未確認 | あり（Codex 固有、turn-scoped 5 種で required）| Codex specific normalize に追加 |
+| `turn_id` field | 未確認 | あり（Codex 固有、turn-scoped 5 種で required）| Codex adapter で normalized_event に optional `turn_id` として attach (Phase C-9 着地)。turn 単位 forensic を作る場合は events.jsonl から `turn_id` で groupBy する想定 |
+| 両 engine の session_id 衝突 | 想定外 | spec は format 未規定 | 両 engine とも UUID 系を発行する慣例があり実衝突確率は事実上ゼロ。`sessions/<session_id>/` を engine prefix なしで共有する現行 layout を維持し、衝突時のみ operator が `--data-dir` を分けて運用すれば足りる（Phase C-8 着地） |
 | Plugin 機構 | 未確認 | あり（`codex plugin marketplace add`）| 採用、§10.2 install 手順を更新 |
 | `${CLAUDE_PLUGIN_ROOT}` 相当 env | 未確認 | **公式明示なし** | plugin root を path 計算で解決、Phase C-1 実機 verify |
 | Feature flag `codex_hooks = true` | 未確認 | **必須**（無いと silently ignored） | install 手順で必須化 |
