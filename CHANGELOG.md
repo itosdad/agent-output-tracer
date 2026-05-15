@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.6] — 2026-05-15 — Phase 2.G: Command palette `:`
+
+### Added
+
+- **Command palette** — `:` from any screen opens a single-line input
+  that parses CLI-like syntax and routes to the right destination:
+
+      :sessions
+      :stats            (latest)        :stats <sid>
+      :doctor
+      :find <vocab>     (latest)        :find <vocab> <N>     (threshold)
+                                        :find <vocab> --session <sid>
+      :trace <phrase>
+      :search <regex>
+      :home             (pops back to Home)
+      :help             (opens help overlay for the screen below)
+      :quit
+
+  Tokenisation goes through `shlex.split`, so quoted phrases like
+  `:trace "hooks_wiring setup"` are parsed as one argument.
+  Process-local history recall on ↑/↓.
+
+  The palette dismisses itself before invoking the dispatched action,
+  so the new screen pushes onto the underlying stack rather than on
+  top of the modal.
+
 ## [0.9.5] — 2026-05-15 — Phase 2.F: Note + Export modals
 
 ### Added
@@ -608,6 +634,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.9.6]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.6
 [0.9.5]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.5
 [0.9.4]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.4
 [0.9.3]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.3

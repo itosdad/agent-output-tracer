@@ -168,7 +168,11 @@ class AOTScreen(Screen):
     # ---- placeholders for phase 2 / 3 actions still to wire ----
 
     def action_noop_palette(self) -> None:
-        self.app.bell()
+        """`:` — open the command palette."""
+        from tui.screens.palette import CommandPalette
+
+        data_dir = getattr(self.app, "_data_dir", None)
+        self.app.push_screen(CommandPalette(data_dir=data_dir))
 
     def action_noop_theme(self) -> None:
         self.app.bell()

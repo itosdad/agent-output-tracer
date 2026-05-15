@@ -380,6 +380,78 @@ async def test_enter_on_event_row_drills_into_event_detail(plugin_data_dir):
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
+async def test_palette_routes_to_doctor(plugin_data_dir):
+    """`:doctor` ⏎ should dismiss the palette and push DoctorScreen."""
+    from textual.widgets import Input
+
+    from tui.app import AOTApp
+    from tui.screens.palette import CommandPalette
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # Open palette via the bound `:` key.
+        await pilot.press("colon")
+        await pilot.pause()
+        assert isinstance(app.screen, CommandPalette)
+
+        inp = app.screen.query_one(Input)
+        inp.value = "doctor"
+        await pilot.press("enter")
+        await pilot.pause()
+        # Palette dismissed, DoctorScreen on top.
+        assert app.screen.__class__.__name__ == "DoctorScreen"
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_palette_routes_to_find_with_vocab(plugin_data_dir):
+    """`:find hallucinations` should jump straight to results."""
+    from textual.widgets import Input
+
+    from core.recorder import append_event
+    from tui.app import AOTApp
+
+    base = {
+        "v": 1,
+        "engine": "claude-code",
+        "session_id": "pal-001",
+        "cwd": "/p",
+        "tool_name": None,
+        "tool_input": None,
+        "tool_response": None,
+        "agent_response_text": None,
+        "user_prompt_text": None,
+        "stop_reason": None,
+        "paths": [],
+        "command": None,
+        "result_bytes": 0,
+        "raw_event": {},
+    }
+    append_event(
+        {
+            **base,
+            "event_type": "agent_response",
+            "ts": "2026-05-15T10:00:01.000+00:00",
+            "agent_response_text": "let me check /proj/ghost.md",
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("colon")
+        await pilot.pause()
+        inp = app.screen.query_one(Input)
+        inp.value = "find hallucinations"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "FindResultsScreen"
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
 async def test_home_drills_into_trace_then_results(plugin_data_dir):
     """Home → Trace → type phrase → enter → TraceResults."""
     from textual.widgets import Input, OptionList, Static
