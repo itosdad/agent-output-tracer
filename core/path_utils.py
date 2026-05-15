@@ -21,9 +21,16 @@ def resolve_data_dir(explicit=None):
       3. `CODEX_PLUGIN_DATA` env (forward-compatible — if a future Codex
          release introduces its own env var, just export this and the
          hook picks it up without code changes)
-      4. `~/.codex/plugins/data/agent-output-tracer/` if it exists
+      4. `~/.claude/plugins/data/agent-output-tracer*` — Claude Code
+         names plugin data dirs `<plugin>-<marketplace>` when installed
+         from a marketplace (so `agent-output-tracer-itosdad-agent-output-tracer`
+         and `agent-output-tracer-inline` are both valid). When multiple
+         match, pick the one with the most recent activity under
+         `sessions/` so the CLI lands on the dir the user is actually
+         using right now.
+      5. `~/.codex/plugins/data/agent-output-tracer/` if it exists
          (matches Codex's documented install cache layout)
-      5. None — caller must supply `--data-dir` explicitly
+      6. None — caller must supply `--data-dir` explicitly
     """
     if explicit is not None:
         return Path(explicit)
@@ -31,10 +38,45 @@ def resolve_data_dir(explicit=None):
         env = os.environ.get(var)
         if env:
             return Path(env)
+    claude_match = _scan_claude_plugin_data()
+    if claude_match is not None:
+        return claude_match
     codex_default = Path.home() / ".codex" / "plugins" / "data" / "agent-output-tracer"
     if codex_default.exists():
         return codex_default
     return None
+
+
+def _scan_claude_plugin_data():
+    """Look for the Claude Code plugin data dir under `~/.claude/plugins/data/`.
+
+    Claude Code's actual on-disk name is `<plugin>-<marketplace>` (e.g.
+    `agent-output-tracer-itosdad-agent-output-tracer`) or `<plugin>-inline`
+    for inline-installed plugins. Both flavours are matched by the
+    `agent-output-tracer*` glob.
+
+    When more than one match exists, prefer the dir whose `sessions/`
+    has the newest mtime — that is almost always the install the user
+    is actively writing to.
+    """
+    root = Path.home() / ".claude" / "plugins" / "data"
+    if not root.is_dir():
+        return None
+    matches = [p for p in root.glob("agent-output-tracer*") if p.is_dir()]
+    if not matches:
+        return None
+    if len(matches) == 1:
+        return matches[0]
+
+    def _activity(p):
+        sess = p / "sessions"
+        try:
+            return sess.stat().st_mtime if sess.exists() else p.stat().st_mtime
+        except OSError:
+            return 0.0
+
+    matches.sort(key=_activity, reverse=True)
+    return matches[0]
 
 
 def is_safe_session_id(session_id):

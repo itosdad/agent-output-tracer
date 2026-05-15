@@ -39,9 +39,19 @@ def isolated_env(plugin_data_dir, plugin_root):
 
 
 @pytest.fixture(autouse=True)
-def _clean_env(monkeypatch):
-    """Strip any caller-leaked env vars that could pollute tests."""
-    for var in ("CLAUDE_PLUGIN_ROOT", "CLAUDE_PLUGIN_DATA"):
+def _clean_env(tmp_path_factory, monkeypatch):
+    """Isolate tests from caller env and from the host's real `~/.claude/`.
+
+    The host machine may have a real Claude Code install whose
+    `~/.claude/plugins/data/agent-output-tracer-*` directory would
+    otherwise be picked up by `resolve_data_dir`'s auto-scan and break
+    tests that assert "no data dir is configured".
+    """
+    for var in ("CLAUDE_PLUGIN_ROOT", "CLAUDE_PLUGIN_DATA", "CODEX_PLUGIN_DATA"):
         if var in os.environ:
             monkeypatch.delenv(var, raising=False)
+    # Pin HOME at an empty tmp dir so resolve_data_dir's filesystem
+    # scans see nothing unless a test explicitly seeds them.
+    fake_home = tmp_path_factory.mktemp("fake_home")
+    monkeypatch.setenv("HOME", str(fake_home))
     yield

@@ -9,6 +9,7 @@ import pytest
 
 from cli.colors import Palette
 from cli.errors import format_error_block
+from core.path_utils import resolve_data_dir
 from query import config_cmd
 from query.doctor import doctor
 
@@ -206,6 +207,71 @@ def test_doctor_hooks_wiring_warns_when_uninstalled(tmp_path, monkeypatch):
     hw = next(c for c in result["checks"] if c["name"] == "hooks_wiring")
     assert hw["status"] == "warn"
     assert "fix" in hw and hw["fix"]
+
+
+# ----- resolve_data_dir scan-for-Claude-Code-naming -----
+
+
+def _clear_data_env(monkeypatch):
+    monkeypatch.delenv("CLAUDE_PLUGIN_DATA", raising=False)
+    monkeypatch.delenv("CODEX_PLUGIN_DATA", raising=False)
+
+
+def test_resolve_data_dir_finds_marketplace_named_dir(tmp_path, monkeypatch):
+    """Claude Code names plugin data `<plugin>-<marketplace>` — the CLI must find it."""
+    _clear_data_env(monkeypatch)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    target = (
+        tmp_path
+        / ".claude"
+        / "plugins"
+        / "data"
+        / "agent-output-tracer-itosdad-agent-output-tracer"
+        / "sessions"
+    )
+    target.mkdir(parents=True)
+    resolved = resolve_data_dir()
+    assert resolved is not None
+    assert resolved.name == "agent-output-tracer-itosdad-agent-output-tracer"
+
+
+def test_resolve_data_dir_finds_inline_install(tmp_path, monkeypatch):
+    _clear_data_env(monkeypatch)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".claude" / "plugins" / "data" / "agent-output-tracer-inline" / "sessions").mkdir(
+        parents=True
+    )
+    resolved = resolve_data_dir()
+    assert resolved is not None
+    assert resolved.name == "agent-output-tracer-inline"
+
+
+def test_resolve_data_dir_picks_most_recent_when_multiple(tmp_path, monkeypatch):
+    """If both `-inline` and `-<marketplace>` dirs exist, pick the freshest."""
+    _clear_data_env(monkeypatch)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    data_root = tmp_path / ".claude" / "plugins" / "data"
+
+    older = data_root / "agent-output-tracer-inline" / "sessions"
+    newer = data_root / "agent-output-tracer-itosdad-agent-output-tracer" / "sessions"
+    older.mkdir(parents=True)
+    newer.mkdir(parents=True)
+    # Force a measurable mtime gap.
+    os.utime(older, (1000, 1000))
+    os.utime(newer, (2000, 2000))
+
+    resolved = resolve_data_dir()
+    assert resolved.name == "agent-output-tracer-itosdad-agent-output-tracer"
+
+
+def test_resolve_data_dir_env_still_wins(tmp_path, monkeypatch):
+    """Explicit CLAUDE_PLUGIN_DATA must override the auto-scan."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", "/explicit/path")
+    # Also create a dir that the scan would otherwise pick up.
+    (tmp_path / ".claude" / "plugins" / "data" / "agent-output-tracer-inline").mkdir(parents=True)
+    resolved = resolve_data_dir()
+    assert str(resolved) == "/explicit/path"
 
 
 # ----- config_cmd -----
