@@ -109,6 +109,28 @@ def _build_base(
     turn_id = raw.get("turn_id")
     if isinstance(turn_id, str) and turn_id:
         base["turn_id"] = turn_id
+    # Schema v2 (DESIGN_FORENSIC_UX §6.2) pass-through.
+    for key in ("tool_use_id", "engine_version"):
+        v = raw.get(key)
+        if isinstance(v, str) and v:
+            base[key] = v
+    pm = raw.get("permission_mode")
+    if isinstance(pm, str) and pm:
+        base["permission_mode"] = pm
+    parent = raw.get("parent_session_id")
+    if isinstance(parent, str) and parent:
+        base["parent_session_id"] = parent
+    duration = raw.get("duration_ms")
+    if isinstance(duration, int):
+        base["duration_ms"] = duration
+    tokens = raw.get("tokens") or (raw.get("usage") if isinstance(raw.get("usage"), dict) else None)
+    if isinstance(tokens, dict):
+        base["tokens"] = {
+            "input": tokens.get("input_tokens") or tokens.get("input"),
+            "output": tokens.get("output_tokens") or tokens.get("output"),
+            "cache_read": tokens.get("cache_read_input_tokens") or tokens.get("cache_read"),
+            "cache_creation": tokens.get("cache_creation_input_tokens") or tokens.get("cache_creation"),
+        }
     return base
 
 

@@ -8,7 +8,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -18,7 +18,7 @@ def _seed(data_dir, *, sid="n1", repeats=1, ts_base=None):
     sys.path.insert(0, str(REPO_ROOT))
     from core.recorder import append_event
 
-    base_dt = ts_base or datetime(2026, 5, 1, 10, 0, 0, tzinfo=timezone.utc)
+    base_dt = ts_base or datetime(2026, 5, 1, 10, 0, 0, tzinfo=UTC)
 
     def at(secs):
         return (base_dt + timedelta(seconds=secs)).isoformat(timespec="milliseconds")
@@ -211,9 +211,9 @@ def test_cli_replay_show_hints_json_format(tmp_path):
 
 def test_cli_gc_dry_run(tmp_path):
     """Old session → dry-run reports stripped/deleted without mutating."""
-    old = datetime.now(timezone.utc) - timedelta(days=400)
+    old = datetime.now(UTC) - timedelta(days=400)
     _seed(tmp_path, sid="old-one", ts_base=old)
-    fresh = datetime.now(timezone.utc) - timedelta(hours=1)
+    fresh = datetime.now(UTC) - timedelta(hours=1)
     _seed(tmp_path, sid="recent", ts_base=fresh)
 
     res = _run(["--data-dir", str(tmp_path), "gc", "--dry-run"])
@@ -226,7 +226,7 @@ def test_cli_gc_dry_run(tmp_path):
 
 def test_cli_gc_actually_mutates(tmp_path):
     """Without --dry-run, very old sessions get cleaned."""
-    old = datetime.now(timezone.utc) - timedelta(days=400)
+    old = datetime.now(UTC) - timedelta(days=400)
     _seed(tmp_path, sid="ancient", ts_base=old)
     res = _run(["--data-dir", str(tmp_path), "gc"])
     assert res.returncode == 0

@@ -87,7 +87,7 @@ def test_append_event_writes_metadata_json(plugin_data_dir):
     meta_file = plugin_data_dir / "sessions" / "S1" / "metadata.json"
     assert meta_file.is_file()
     meta = json.loads(meta_file.read_text())
-    assert meta["v"] == 1
+    assert meta["v"] == 2
     assert meta["session_id"] == "S1"
     assert meta["engine"] == "claude-code"
     assert meta["cwd"] == "/proj"

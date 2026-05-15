@@ -7,7 +7,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.0] — 2026-05-15
+## [0.6.0] — 2026-05-15
+
+Phase D-2 through D-7 — schema v2, causal core, live UX, side-channel
+TUI, bridges, safe-share export. 417 tests pass on Python 3.13; the
+single skip is the textual-app constructor test which runs only when
+the `[tui]` optional dependency is installed.
+
+### Added
+
+- **D-2 Schema v2** — additive schema bump across events.jsonl /
+  metadata.json / index.json. Events now carry `v`, `response_sha256`
+  + `response_size_bytes` (post_tool), `correlation_id` (recorder-minted
+  per turn; reuses Codex `turn_id` when present), `tool_use_id`,
+  `parent_session_id`, `tokens`, `duration_ms`, `engine_version`,
+  `permission_mode`, `hook_self_ms`. metadata.json migrates v1→v2 in
+  place on first append and grows `notes_count` / `findings` /
+  `anomaly_counters` / `tokens_total` / `cwd_hash`. New `core/indexer.py`
+  builds per-session search indexes (bigram_inverted,
+  content_hash_to_events, path_first_seen, phrase_to_first_agent_event)
+  lazily on demand.
+- **D-3 Causal Core** — 5 new query verbs:
+  - `aot find VOCAB` over 10 anomaly vocab terms (unmentioned-reads /
+    repeated-reads / glob-burst / routing-thrash / large-read /
+    hallucinations / empty-glob / stale-cache / silent-failure /
+    abandoned-write). `denied-permission` deferred to engine-log
+    overlay.
+  - `aot trace --missing PHRASE [--reference-paths ...]` — inverse
+    hallucination: phrase in a tool_response but absent from every
+    downstream agent_response.
+  - `aot trace --by-sha SHA256_HEX` — content-address lookup over the
+    v2 `response_sha256` field.
+  - `aot bisect start|good|bad|skip|view|status|log|quit` — git-bisect
+    flavoured binary search; first-bad finding appended to
+    `metadata.findings` (append-only).
+  - `aot note add|list|rm` — human-attached notes at
+    `<session>/notes.jsonl` with standard tag vocabulary
+    (root-cause / observation / question / false-positive / followup /
+    `custom:<...>`).
+  - `aot stats` — session-level forensic counters (NOT cost) with
+    `--format json` for CI.
+- **D-4 Live UX** — `core/follower.py` polling tail with shrink-detection
+  fallback; new `aot tail [--format text|stream-json] [--from-start]`
+  command; `aot replay --watch` continues into live tail after the
+  initial replay.
+- **D-5 Side-channel TUI** — `aot tui` launches a textual-based
+  side-channel UI (DESIGN_FORENSIC_UX §5). Two-pane layout
+  (session list + timeline), keybinds for navigation / session switch /
+  search filter / live follow / quit. Optional dependency — install
+  with `pip install 'agent-output-tracer[tui]'`; without the extra,
+  `aot tui` emits the standard 3-line error pointing at the install
+  command.
+- **D-6 Bridges** — all default-off, opt-in, one-way:
+  - `bridges/engine_log.py` — read `~/.claude/debug/<session>.txt`
+    (honors `CLAUDE_CODE_DEBUG_LOGS_DIR` env), timestamp-merge with
+    AOT events.
+  - `bridges/otel_export.py` — build engine-neutral span payload
+    (`aot.session` / `aot.turn` / `aot.tool` / `aot.finding` / opt-in
+    `aot.user_prompt`); console exporter implemented, others raise
+    clear errors. `log_user_prompt` and `log_raw_tool_response` default
+    False (DESIGN_FORENSIC_UX §8.3).
+  - `core/global_index.py` — `<data_dir>/global_index.json` aggregating
+    sessions / paths / SHAs / phrase grams across the retention window
+    (default 30 days).
+  - `aot review --since DATE [--until DATE]` — user-explicit
+    cross-session summary that builds the global index on demand.
+- **D-7 Safe-share Export** — `core/sanitiser.py` produces a redacted
+  view of a session (cwd → `<repo>`, `$HOME` → `<HOME>`, emails / long
+  hex / phone-shaped digit runs masked, tool_response stripped to
+  sha+size+excerpt). `aot export --session SPEC --format markdown|json|archive`
+  writes the safe payload to stdout or a file; `--format archive`
+  produces a zip with `metadata.json` + `events.jsonl` + `REPORT.md`.
+- New `[tui]` and `[dev]` optional dependency sets in `pyproject.toml`.
+- `bridges/` and `tui/` packages registered for distribution.
+
+### Tests
+
+- D-2: 13 new tests (schema stamping, correlation_id anchoring, v1→v2
+  metadata migration, adapter pass-through, indexer build / persist /
+  reload).
+- D-3: 27 new tests (every find vocab term, both new trace modes,
+  bisect convergence, note round-trip, stats output).
+- D-4: 6 new tests (follower from-start / tail-only / appended-during-loop /
+  shrink-recovery, tail text + stream-json output).
+- D-5: 3 tests (`is_available()` agreement, CLI without the extra
+  emits the 3-line error, app constructor smoke — last skipped when
+  textual isn't installed).
+- D-6: 13 new tests (engine_log path resolution / timestamp parse /
+  merge ordering, span model PII redaction defaults / opt-in, OTel
+  is_available, global_index aggregation, review summary +
+  since-filter).
+- D-7: 9 new tests (sanitiser PII / cwd / tool_response handling,
+  excerpt length, markdown / json / archive output paths, archive
+  output-required validation).
+
+
 
 Phase D-1 — CLI UX foundation. New `aot` short alias for the binary,
 3-line error UX, color/symbol palette honoring `NO_COLOR`, self-
@@ -269,6 +363,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.6.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.6.0
 [0.5.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.5.0
 [0.4.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.4.0
 [0.3.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.3.0

@@ -79,6 +79,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit anomaly hints alongside the timeline (Phase B-8).",
     )
+    p_replay.add_argument(
+        "--watch",
+        action="store_true",
+        help="After the initial replay, follow events.jsonl until interrupted (Phase D-4).",
+    )
 
     # list
     p_list = subparsers.add_parser("list", help="List captured sessions (newest first).")
@@ -132,10 +137,25 @@ def _build_parser() -> argparse.ArgumentParser:
     # trace
     p_trace = subparsers.add_parser("trace", help="Reverse-lookup an output phrase to its causal trail.")
     p_trace.add_argument("--session", required=True)
-    p_trace.add_argument(
+    trace_mode = p_trace.add_mutually_exclusive_group(required=True)
+    trace_mode.add_argument(
         "--output",
-        required=True,
         help="Phrase to trace. The command finds the first agent_response containing it and walks back through prior events.",
+    )
+    trace_mode.add_argument(
+        "--missing",
+        help="Phrase that appeared in a tool_response but is absent from every subsequent agent_response (inverse hallucination).",
+    )
+    trace_mode.add_argument(
+        "--by-sha",
+        dest="by_sha",
+        help="SHA256 of a tool_response. Lists every post_tool event with that content.",
+    )
+    p_trace.add_argument(
+        "--reference-paths",
+        dest="reference_paths",
+        default=None,
+        help="Comma-separated paths restricting --missing search.",
     )
 
     # state-at
@@ -169,6 +189,130 @@ def _build_parser() -> argparse.ArgumentParser:
     p_cfg_unset = cfg_sub.add_parser("unset", help="Clear one config value (revert to default).")
     p_cfg_unset.add_argument("key")
     cfg_sub.add_parser("list", help="List every key with its source (user/default).")
+
+    # find (D-3)
+    p_find = subparsers.add_parser(
+        "find",
+        help="Run anomaly vocabulary patterns (unmentioned-reads / repeated-reads / glob-burst / etc).",
+    )
+    p_find.add_argument("vocab", help="Vocab term: unmentioned-reads / repeated-reads / glob-burst / routing-thrash / large-read / hallucinations / empty-glob / stale-cache / silent-failure / abandoned-write")
+    p_find.add_argument("--session", required=True)
+    p_find.add_argument("--threshold", type=int, default=None, help="Threshold override (vocab-specific).")
+
+    # bisect (D-3)
+    p_bisect = subparsers.add_parser("bisect", help="Binary search across a session timeline.")
+    bisect_sub = p_bisect.add_subparsers(dest="bisect_action", metavar="ACTION")
+    bisect_sub.required = True
+    p_bstart = bisect_sub.add_parser("start", help="Begin a bisect on a session.")
+    p_bstart.add_argument("--session", required=True)
+    p_bstart.add_argument("--from", dest="lo", type=int, default=None, help="Lower bound (event idx)")
+    p_bstart.add_argument("--to", dest="hi", type=int, default=None, help="Upper bound (event idx)")
+    for verb in ("good", "bad", "skip", "view", "status", "log", "quit"):
+        p = bisect_sub.add_parser(verb, help=f"bisect {verb}")
+        p.add_argument("--session", required=True)
+
+    # note (D-3)
+    p_note = subparsers.add_parser("note", help="Attach a human note to a session.")
+    note_sub = p_note.add_subparsers(dest="note_action", metavar="ACTION")
+    note_sub.required = True
+    p_n_add = note_sub.add_parser("add", help="Add a note.")
+    p_n_add.add_argument("--session", required=True)
+    p_n_add.add_argument("body", help="Note body.")
+    p_n_add.add_argument("--tag", default="observation", help="Tag (default 'observation').")
+    p_n_add.add_argument("--event", dest="event_idx", type=int, default=None, help="Anchor to an event index.")
+    p_n_add.add_argument("--finding", dest="finding_idx", type=int, default=None, help="Anchor to a finding index.")
+    p_n_list = note_sub.add_parser("list", help="List notes on a session.")
+    p_n_list.add_argument("--session", required=True)
+    p_n_list.add_argument("--tag", default=None, help="Filter by tag.")
+    p_n_rm = note_sub.add_parser("rm", help="Remove a note by id.")
+    p_n_rm.add_argument("--session", required=True)
+    p_n_rm.add_argument("--id", dest="note_id", required=True)
+
+    # stats (D-3)
+    p_stats = subparsers.add_parser("stats", help="Forensic statistics for a session.")
+    p_stats.add_argument("--session", required=True)
+    p_stats.add_argument("--format", dest="fmt", choices=["text", "json"], default="text")
+
+    # tui (D-5)
+    p_tui = subparsers.add_parser(
+        "tui",
+        help="Open the side-channel TUI (D-5; requires the [tui] extra).",
+    )
+    p_tui.add_argument(
+        "--session",
+        default="latest",
+        help="Initial session spec (default 'latest').",
+    )
+
+    # export (D-7 safe-share)
+    p_xport = subparsers.add_parser(
+        "export",
+        help="Safe-share export of a session (D-7, sanitised).",
+    )
+    p_xport.add_argument("--session", required=True)
+    p_xport.add_argument(
+        "--safe-share",
+        action="store_true",
+        help="Always set in D-7 (default).",
+    )
+    p_xport.add_argument(
+        "--format",
+        dest="fmt",
+        choices=["markdown", "json", "archive"],
+        default="markdown",
+    )
+    p_xport.add_argument(
+        "--keep-excerpt",
+        type=int,
+        default=0,
+        help="Retain N leading characters of each tool_response (default 0).",
+    )
+    p_xport.add_argument(
+        "--output",
+        default=None,
+        help="Output path. Required for --format archive.",
+    )
+
+    # review (D-6)
+    p_review = subparsers.add_parser(
+        "review",
+        help="User-explicit cross-session summary (D-6, builds the global index).",
+    )
+    p_review.add_argument("--since", default=None, help="ISO date lower bound on ts_end.")
+    p_review.add_argument("--until", default=None, help="ISO date upper bound on ts_end.")
+    p_review.add_argument(
+        "--format", dest="fmt", choices=["text", "json"], default="text"
+    )
+
+    # tail (D-4)
+    p_tail = subparsers.add_parser(
+        "tail",
+        help="Follow events.jsonl as a session progresses (D-4).",
+    )
+    p_tail.add_argument("--session", required=True)
+    p_tail.add_argument(
+        "--format",
+        dest="fmt",
+        choices=["text", "stream-json"],
+        default="text",
+    )
+    p_tail.add_argument(
+        "--from-start",
+        action="store_true",
+        help="Render existing events first, then tail.",
+    )
+    p_tail.add_argument(
+        "--poll-interval",
+        type=float,
+        default=0.5,
+        help="Seconds between filesystem polls (default 0.5).",
+    )
+    p_tail.add_argument(
+        "--stop-after",
+        type=float,
+        default=None,
+        help="Bail out after N seconds (mainly for CI/tests).",
+    )
 
     return parser
 
@@ -238,6 +382,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 show_hints=args.show_hints,
                 stream=sys.stdout,
             )
+            if args.watch:
+                from query.tail import tail
+
+                sys.stdout.write("\n--- following (Ctrl+C to stop) ---\n")
+                sys.stdout.flush()
+                try:
+                    tail(resolved, data_dir=args.data_dir, fmt=args.fmt if args.fmt == "json" else "text", stream=sys.stdout)
+                except KeyboardInterrupt:
+                    pass
             return 0
 
         return _with_session(args, palette, run)
@@ -362,13 +515,36 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.cmd == "trace":
-        from query.trace import trace
+        from query.trace import trace, trace_by_sha, trace_missing
 
         resolved = _resolve(args.session, args.data_dir, palette)
         if resolved is None:
             return 2
-        result = trace(resolved, args.output, data_dir=args.data_dir, stream=sys.stdout)
-        return 3 if result.get("hallucination_candidate") else 0
+        if args.output:
+            result = trace(resolved, args.output, data_dir=args.data_dir, stream=sys.stdout)
+            return 3 if result.get("hallucination_candidate") else 0
+        if args.missing:
+            refs = (
+                [p.strip() for p in args.reference_paths.split(",") if p.strip()]
+                if args.reference_paths
+                else None
+            )
+            result = trace_missing(
+                resolved,
+                args.missing,
+                reference_paths=refs,
+                data_dir=args.data_dir,
+                stream=sys.stdout,
+            )
+            return 3 if result.get("missing") else 0
+        if args.by_sha:
+            result = trace_by_sha(
+                resolved,
+                args.by_sha,
+                data_dir=args.data_dir,
+                stream=sys.stdout,
+            )
+            return 0 if result.get("matches") else 1
 
     if args.cmd == "state-at":
         from query.state_at import state_at
@@ -440,6 +616,210 @@ def main(argv: Sequence[str] | None = None) -> int:
                 palette=palette,
             )
             return 2
+
+    if args.cmd == "find":
+        from query.find import find
+
+        resolved = _resolve(args.session, args.data_dir, palette)
+        if resolved is None:
+            return 2
+        try:
+            result = find(
+                resolved,
+                args.vocab,
+                threshold=args.threshold,
+                data_dir=args.data_dir,
+                stream=sys.stdout,
+            )
+        except ValueError as exc:
+            print_error(
+                "unknown find vocab",
+                cause=str(exc),
+                tries=["aot find repeated-reads --session latest"],
+                palette=palette,
+            )
+            return 2
+        return 0 if result["matches"] else 1
+
+    if args.cmd == "bisect":
+        from query.bisect import (
+            BisectError,
+            bisect_log,
+            bisect_mark,
+            bisect_quit,
+            bisect_start,
+            bisect_status,
+            bisect_view,
+        )
+
+        resolved = _resolve(args.session, args.data_dir, palette)
+        if resolved is None:
+            return 2
+        try:
+            if args.bisect_action == "start":
+                bisect_start(
+                    resolved,
+                    lo=args.lo,
+                    hi=args.hi,
+                    data_dir=args.data_dir,
+                    stream=sys.stdout,
+                )
+            elif args.bisect_action in ("good", "bad", "skip"):
+                bisect_mark(
+                    resolved,
+                    args.bisect_action,
+                    data_dir=args.data_dir,
+                    stream=sys.stdout,
+                )
+            elif args.bisect_action == "view":
+                bisect_view(resolved, data_dir=args.data_dir, stream=sys.stdout)
+            elif args.bisect_action == "status":
+                bisect_status(resolved, data_dir=args.data_dir, stream=sys.stdout)
+            elif args.bisect_action == "log":
+                bisect_log(resolved, data_dir=args.data_dir, stream=sys.stdout)
+            elif args.bisect_action == "quit":
+                bisect_quit(resolved, data_dir=args.data_dir, stream=sys.stdout)
+        except BisectError as exc:
+            print_error(
+                "bisect error",
+                cause=str(exc),
+                tries=[f"aot bisect start --session {args.session}"],
+                palette=palette,
+            )
+            return 2
+        return 0
+
+    if args.cmd == "note":
+        from query.note import NoteError, note_add, note_list, note_rm
+
+        resolved = _resolve(args.session, args.data_dir, palette)
+        if resolved is None:
+            return 2
+        try:
+            if args.note_action == "add":
+                note_add(
+                    resolved,
+                    args.body,
+                    tag=args.tag,
+                    event_idx=args.event_idx,
+                    finding_idx=args.finding_idx,
+                    data_dir=args.data_dir,
+                    stream=sys.stdout,
+                )
+            elif args.note_action == "list":
+                note_list(
+                    resolved,
+                    tag=args.tag,
+                    data_dir=args.data_dir,
+                    stream=sys.stdout,
+                )
+            elif args.note_action == "rm":
+                ok = note_rm(
+                    resolved,
+                    args.note_id,
+                    data_dir=args.data_dir,
+                    stream=sys.stdout,
+                )
+                return 0 if ok else 1
+        except NoteError as exc:
+            print_error(
+                "note error",
+                cause=str(exc),
+                tries=["aot note add --session latest --tag observation 'body...'"],
+                palette=palette,
+            )
+            return 2
+        return 0
+
+    if args.cmd == "stats":
+        from query.stats import stats
+
+        resolved = _resolve(args.session, args.data_dir, palette)
+        if resolved is None:
+            return 2
+        stats(resolved, data_dir=args.data_dir, fmt=args.fmt, stream=sys.stdout)
+        return 0
+
+    if args.cmd == "tui":
+        from tui import is_available
+
+        if not is_available():
+            print_error(
+                "'aot tui' requires the [tui] optional dependencies",
+                cause="textual / watchdog not installed",
+                tries=["pip install 'agent-output-tracer[tui]'"],
+                palette=palette,
+            )
+            return 2
+        from tui.app import run as tui_run
+
+        try:
+            return tui_run(args.session, data_dir=args.data_dir)
+        except Exception as exc:  # textual itself can raise startup errors
+            print_error(
+                "TUI startup failed",
+                cause=str(exc),
+                tries=["aot doctor", f"aot replay --session {args.session}"],
+                palette=palette,
+            )
+            return 2
+
+    if args.cmd == "export":
+        from query.export import export_safe_share
+
+        resolved = _resolve(args.session, args.data_dir, palette)
+        if resolved is None:
+            return 2
+        try:
+            export_safe_share(
+                resolved,
+                data_dir=args.data_dir,
+                fmt=args.fmt,
+                keep_excerpt=args.keep_excerpt,
+                output_path=args.output,
+                stream=sys.stdout,
+            )
+        except ValueError as exc:
+            print_error(
+                "export error",
+                cause=str(exc),
+                tries=["aot export --session latest --format markdown"],
+                palette=palette,
+            )
+            return 2
+        return 0
+
+    if args.cmd == "review":
+        from query.review import review
+
+        review(
+            since=args.since,
+            until=args.until,
+            data_dir=args.data_dir,
+            fmt=args.fmt,
+            stream=sys.stdout,
+        )
+        return 0
+
+    if args.cmd == "tail":
+        from query.tail import tail
+
+        resolved = _resolve(args.session, args.data_dir, palette)
+        if resolved is None:
+            return 2
+        try:
+            tail(
+                resolved,
+                data_dir=args.data_dir,
+                fmt=args.fmt,
+                from_start=args.from_start,
+                poll_interval=args.poll_interval,
+                stop_after_seconds=args.stop_after,
+                stream=sys.stdout,
+            )
+        except KeyboardInterrupt:
+            pass
+        return 0
 
     parser.error(f"unknown command: {args.cmd}")
     return 2

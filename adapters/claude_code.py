@@ -78,7 +78,7 @@ def _build_base(
     event_type: str,
     ts: str,
 ) -> dict[str, Any]:
-    return {
+    base: dict[str, Any] = {
         "v": 1,
         "engine": ENGINE_ID,
         "event_type": event_type,
@@ -96,6 +96,29 @@ def _build_base(
         "result_bytes": 0,
         "raw_event": raw,
     }
+    # Schema v2 pass-through: surface engine-supplied fields when present
+    # so the recorder can drop them straight into events.jsonl. Each is
+    # attached only if the engine actually sent it, keeping v1-shaped
+    # consumers unaffected.
+    for key in ("tool_use_id", "engine_version", "permission_mode"):
+        v = raw.get(key)
+        if isinstance(v, str) and v:
+            base[key] = v
+    tokens = raw.get("tokens") or (raw.get("usage") if isinstance(raw.get("usage"), dict) else None)
+    if isinstance(tokens, dict):
+        base["tokens"] = {
+            "input": tokens.get("input_tokens") or tokens.get("input"),
+            "output": tokens.get("output_tokens") or tokens.get("output"),
+            "cache_read": tokens.get("cache_read_input_tokens") or tokens.get("cache_read"),
+            "cache_creation": tokens.get("cache_creation_input_tokens") or tokens.get("cache_creation"),
+        }
+    parent = raw.get("parent_session_id")
+    if isinstance(parent, str) and parent:
+        base["parent_session_id"] = parent
+    duration = raw.get("duration_ms")
+    if isinstance(duration, int):
+        base["duration_ms"] = duration
+    return base
 
 
 def normalize_event(

@@ -14,11 +14,13 @@ vs "context rot" vs "wrong tool") and **user-driven** (no proactive alerts;
 you decide when something needs investigation). Hooks are observation-only
 — the agent is never blocked.
 
-**Current: v0.4.0** — Phase A (capture) + Phase B (forensic query suite,
-10 commands) + Phase C (Codex CLI support) + Phase D-1 (UX foundation:
-`aot` alias, color, error UX, `doctor` / `config`). 347 tests pass on
-Python 3.13; hook runtime verified on Python 3.9 (system `python3` on
-macOS). See [`CHANGELOG.md`](CHANGELOG.md).
+**Current: v0.6.0** — Phase A (capture) + Phase B (forensic query
+suite) + Phase C (Codex CLI support) + Phase D-1..D-7 (UX foundation,
+schema v2, causal core: `find` / `bisect` / `note` / `stats` / inverse
+trace, live `tail` + `replay --watch`, side-channel `aot tui`, opt-in
+bridges incl. OTel, safe-share `aot export`). 417 tests pass on Python
+3.13; hook runtime still verified under Python 3.9. See
+[`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
@@ -37,7 +39,10 @@ macOS). See [`CHANGELOG.md`](CHANGELOG.md).
 **CLI binary** (needed only for `aot replay` / `aot grep` etc.):
 
 ```bash
-pipx install git+https://github.com/itosdad/agent-output-tracer.git@v0.5.0
+pipx install git+https://github.com/itosdad/agent-output-tracer.git@v0.6.0
+
+# Optional side-channel TUI:
+pipx install 'git+https://github.com/itosdad/agent-output-tracer.git@v0.6.0#egg=agent-output-tracer[tui]'
 ```
 
 Installs both `agent-output-tracer` and the short `aot` alias.
@@ -95,7 +100,44 @@ aot diff --session latest
 aot grep --session latest --pattern "regex" -i      # full-text search
 aot state-at --session latest --time 10:23:45        # state at moment T
 aot causal-graph --session latest                    # mermaid causal graph
-aot export-trace --session latest --output report.md # all-in-one report
+aot export-trace --session latest --output report.md # all-in-one forensic report
+aot stats --session latest                           # session-level counters
+aot find repeated-reads --session latest             # anomaly vocab (10 patterns)
+aot find unmentioned-reads --session latest --threshold 1
+```
+
+### Live tail + side-channel TUI
+
+```bash
+aot tail --session latest                            # follow events.jsonl
+aot tail --session latest --format stream-json       # JSON-Lines pipe
+aot replay --session latest --watch                  # replay then keep following
+
+# Side-channel TUI (requires `pip install 'agent-output-tracer[tui]'`)
+aot tui                                              # opens against `latest`
+aot tui --session a3f2
+```
+
+### Bisect / notes / cross-session review
+
+```bash
+aot bisect start --session latest                    # binary search
+aot bisect good       # mark candidate as "before-the-break"
+aot bisect bad        # mark candidate as "after-the-break"
+aot bisect status
+
+aot note add --session latest --tag root-cause "wrong glob pattern"
+aot note list --session latest
+
+aot review --since 2026-05-01                        # opt-in cross-session summary
+```
+
+### Safe-share export (PII / cwd / response bodies stripped)
+
+```bash
+aot export --session latest --format markdown        # to stdout
+aot export --session latest --format json --output redacted.json
+aot export --session latest --format archive --output bundle.zip
 ```
 
 ### Maintenance
@@ -148,8 +190,13 @@ query commands work regardless of which engine produced the session.
 | **A** | Capture pipeline (5 hooks → adapter → recorder), redaction, `replay` / `list` / `latest` / `grep` / `state-at` | ✅ v0.1.0 |
 | **B** | `trace` / `why` / `diff` / `mentioned-but-not-read` / `causal-graph` / `export-trace` / anomaly hints / `gc` | ✅ v0.3.0 |
 | **C** | Codex CLI support (`adapters/codex.py`, dual-engine hooks, install docs) | ✅ v0.4.0 |
-| **D-1** | UX foundation (`aot` alias, color, 3-line errors, `doctor`, `config`) | ✅ v0.4.0+ |
-| D-2..7 | Schema v2, bisect / note / find vocab, live `tail`, side-channel TUI, OTel + engine-log bridges, safe-share export | Draft in [`docs/DESIGN_FORENSIC_UX.md`](docs/DESIGN_FORENSIC_UX.md) |
+| **D-1** | UX foundation (`aot` alias, color, 3-line errors, `doctor`, `config`) | ✅ v0.5.0 |
+| **D-2** | Schema v2 (correlation_id, sha256, tokens, hook_self_ms, v1↔v2 readers) | ✅ v0.6.0 |
+| **D-3** | Causal Core (`find` vocab, `trace --missing` / `--by-sha`, `bisect`, `note`, `stats`) | ✅ v0.6.0 |
+| **D-4** | Live UX (`tail` follower, `replay --watch`, `stream-json`) | ✅ v0.6.0 |
+| **D-5** | Side-channel `aot tui` (optional `[tui]` extra) | ✅ v0.6.0 |
+| **D-6** | Bridges (engine-log overlay, OTel sidecar span model, cross-session `review`) | ✅ v0.6.0 |
+| **D-7** | Safe-share `aot export` (markdown / json / archive, sanitised) | ✅ v0.6.0 |
 
 Phase B-1 (per-session search index for faster grep) is deferred until
 grep actually feels slow on real data.
