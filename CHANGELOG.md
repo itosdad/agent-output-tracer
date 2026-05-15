@@ -77,3 +77,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   paths[i] / tool_input.\*). `-i` flag for case-insensitive. Returns
   grep-conventional exit codes (0 = matches, 1 = none, 2 = error).
   Session spec resolver applied to `--session`. 164 total pass.
+- Phase A-9: `state-at` command — snapshot of session state at a chosen
+  moment (DESIGN §7.3.5). Time spec accepts ISO 8601, HH:MM:SS
+  (rendered against the session's date), or `latest`. Output: unique &
+  total file reads, byte count, user prompts / tool calls / agent
+  responses counters, top-10 reads with a `⚠️ repeated` flag at the
+  3+ threshold. 177 total pass.

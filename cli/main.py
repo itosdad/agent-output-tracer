@@ -92,6 +92,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print the most-recent session id.",
     )
 
+    # state-at
+    p_state = subparsers.add_parser(
+        "state-at",
+        help="Snapshot of session state at a chosen moment.",
+    )
+    p_state.add_argument("--session", required=True)
+    p_state.add_argument(
+        "--time",
+        required=True,
+        help="ISO 8601 timestamp, HH:MM:SS (against session's date), or 'latest'.",
+    )
+
     # grep
     p_grep = subparsers.add_parser(
         "grep",
@@ -162,6 +174,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             latest_command(data_dir=args.data_dir, stream=sys.stdout)
         except SessionSpecNotFound as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        return 0
+
+    if args.cmd == "state-at":
+        from core.session_io import SessionNotFoundError
+        from core.session_resolver import (
+            AmbiguousSessionSpec,
+            SessionSpecNotFound,
+            resolve_session_id,
+        )
+        from query.state_at import state_at
+
+        try:
+            resolved = resolve_session_id(args.session, data_dir=args.data_dir)
+            state_at(
+                resolved,
+                args.time,
+                data_dir=args.data_dir,
+                stream=sys.stdout,
+            )
+        except (SessionNotFoundError, SessionSpecNotFound, AmbiguousSessionSpec) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        except ValueError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
         return 0
