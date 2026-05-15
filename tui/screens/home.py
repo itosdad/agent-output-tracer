@@ -57,8 +57,8 @@ class HomeScreen(AOTScreen):
             _menu_item("find", "Find", "anomaly vocabulary detection", available=False),
             _menu_item("trace", "Trace", "causal trail for an output phrase", available=False),
             _menu_item("search", "Search", "full-text across sessions", available=False),
-            _menu_item("stats", "Stats", "session metrics", available=False),
-            _menu_item("doctor", "Doctor", "self-diagnostic", available=False),
+            _menu_item("stats", "Stats", "session metrics"),
+            _menu_item("doctor", "Doctor", "self-diagnostic"),
             _menu_item("theme", "Theme", "engine: codex (Phase 3 adds Claude)", available=False),
             _menu_item("config", "Config", "CLI defaults", available=False),
             id="home-list",
@@ -82,6 +82,16 @@ class HomeScreen(AOTScreen):
             from tui.screens.sessions import SessionsScreen
 
             self.app.push_screen(SessionsScreen())
-        else:
-            # Phase 2 routes — beep until wired.
-            self.app.bell()
+            return
+        if key == "stats":
+            from tui.screens.stats import StatsScreen
+
+            self.app.push_screen(StatsScreen())
+            return
+        if key == "doctor":
+            from tui.screens.doctor import DoctorScreen
+
+            self.app.push_screen(DoctorScreen())
+            return
+        # Phase 2 routes still pending — beep until wired.
+        self.app.bell()

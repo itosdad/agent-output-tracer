@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] — 2026-05-15 — Phase 2.B: Stats + Doctor screens
+
+### Added
+
+- **Stats screen** (Home → Stats). Wraps `query.stats.stats()` and
+  renders a single read-only card: session id, engine, period, event
+  counts, tool mix (top 6 by call count), files touched, anomaly
+  counters, token totals. Defaults to `latest` session; switching to
+  a different session is deferred to the command palette (Phase 2.G)
+  and the `S` shortcut on Sessions rows (Phase 2.E).
+- **Doctor screen** (Home → Doctor). Wraps `query.doctor.doctor()`
+  with `✓ ⚠ ✗` glyphs per check and an inline `fix:` hint when one
+  is provided. `r` re-runs all checks. Same backend as the CLI
+  `aot doctor` — single source of truth.
+
+### Changed
+
+- Home menu: Stats and Doctor entries are no longer marked
+  `(Phase 2)`. The remaining four (Find / Trace / Search / Theme /
+  Config) still are.
+
 ## [0.9.0] — 2026-05-15 — Phase 2.A: help overlay
 
 ### Added
@@ -530,6 +551,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.9.1]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.1
 [0.9.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.0
 [0.8.1]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.8.1
 [0.8.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.8.0

@@ -380,6 +380,76 @@ async def test_enter_on_event_row_drills_into_event_detail(plugin_data_dir):
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
+async def test_home_drills_into_doctor(plugin_data_dir):
+    """Home → Doctor menu item lands on DoctorScreen, which renders the
+    same check vocabulary the CLI uses."""
+    from textual.widgets import OptionList, Static
+
+    from tui.app import AOTApp
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        ol = app.screen.query_one(OptionList)
+        # Doctor is the 6th menu entry (index 5: sessions, find, trace,
+        # search, stats, doctor).
+        ol.highlighted = 5
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "DoctorScreen"
+        body = app.screen.query_one("#doctor-body", Static)
+        text = str(body.content)
+        assert "runtime" in text
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_home_drills_into_stats_with_seeded_session(plugin_data_dir):
+    """Home → Stats opens the StatsScreen which resolves `latest` to
+    the seeded session and renders its metrics."""
+    from textual.widgets import OptionList, Static
+
+    from core.recorder import append_event
+    from tui.app import AOTApp
+
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",
+            "event_type": "user_prompt",
+            "session_id": "stat-001",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        ol = app.screen.query_one(OptionList)
+        ol.highlighted = 4  # Stats
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "StatsScreen"
+        body = app.screen.query_one("#stats-body", Static)
+        text = str(body.content)
+        assert "stat-001" in text  # resolved session id surfaces in the card
+        assert "claude-code" in text
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
 async def test_help_overlay_opens_and_closes_on_any_key(plugin_data_dir):
     """`?` pushes a HelpOverlay modal and any keypress dismisses it."""
     from tui.app import AOTApp
