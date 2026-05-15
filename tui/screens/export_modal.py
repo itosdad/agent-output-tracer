@@ -40,11 +40,11 @@ class ExportModal(ModalScreen[dict | None]):
         height: auto;
         padding: 1 2;
         background: $panel;
-        border: round cyan;
+        border: round $accent;
     }
     ExportModal #title {
         height: 1;
-        color: cyan;
+        color: $accent;
         text-style: bold;
     }
     ExportModal #hint {

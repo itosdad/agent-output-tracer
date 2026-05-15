@@ -259,10 +259,13 @@ class TimelineScreen(AOTScreen):
             empty.append(" to diagnose hooks wiring.", style="dim")
             ol.add_option(Option(empty))
             return
+        from tui._accent import accent
+
+        col = accent(self.app)
         term = self._search_term.lower()
         added = 0
         for i, ev in enumerate(events):
-            rendered = _render_event(ev)
+            rendered = _render_event(ev, accent_col=col)
             if term and term not in rendered.plain.lower():
                 continue
             ol.add_option(Option(rendered, id=str(i)))
@@ -295,7 +298,7 @@ class TimelineScreen(AOTScreen):
             pass
 
 
-def _render_event(ev: dict) -> Text:
+def _render_event(ev: dict, *, accent_col: str = "cyan") -> Text:
     """Two-line Rich Text rendering of one event card.
 
     Line 1: <prefix>  <ts>  <type>[  <tool · path>]
@@ -317,7 +320,7 @@ def _render_event(ev: dict) -> Text:
         locus = _short_path(paths[0])
 
     text = Text()
-    text.append(f"{prefix}  ", style=_prefix_style(et))
+    text.append(f"{prefix}  ", style=_prefix_style(et, accent_col=accent_col))
     text.append(ts, style="dim")
     text.append("  ")
     text.append(et)
@@ -368,10 +371,13 @@ def _first_body(ev: dict) -> str:
     return body
 
 
-def _prefix_style(event_type: str) -> str:
+def _prefix_style(event_type: str, *, accent_col: str = "cyan") -> str:
     return {
         "user_prompt": "bold",
-        "pre_tool": "bold cyan",
+        # pre_tool is the "this is the engine doing something" signal —
+        # the only event-type style that follows the theme accent.
+        # post_tool keeps semantic green (done), session_* stays dim.
+        "pre_tool": f"bold {accent_col}",
         "post_tool": "bold green",
         "agent_response": "bold",
         "session_start": "dim",

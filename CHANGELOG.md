@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] — 2026-05-16 — Unify accent colour under the active theme
+
+### Fixed
+
+- **Theme leaked the codex cyan into the Claude theme.** Six render
+  paths hardcoded `cyan` instead of reading the active theme's
+  accent, so on the Claude (salmon) theme the chrome was salmon
+  but the latest-session marker, the Timeline `pre_tool` prefix,
+  the help overlay heading + key column, every modal border, and
+  the InlinePrompt label were all still cyan. Engine-wide
+  consistency was broken.
+
+  All six are now theme-aware:
+  - `tui/themes/codex.tcss` — `Breadcrumb` and
+    `InlinePrompt > .prompt-label` now read `$accent` (Textual's
+    CSS variable bound to the active Theme's `accent` field).
+  - `HelpOverlay`, `ExportModal`, `CommandPalette`, `NoteModal`
+    border + title colours → `$accent`.
+  - `sessions.py` latest-session `●` marker → reads
+    `app.current_theme.accent` at render time.
+  - `timeline.py` `pre_tool` event prefix → reads accent
+    likewise. Other event prefixes (`post_tool` green,
+    `session_*` dim) keep their semantic colours.
+  - `help.py` heading + key column → reads accent.
+
+- Extracted a shared `tui._accent.accent(app)` helper. Previously
+  `footer.py` and `status_bar.py` each defined their own private
+  copy; the new module collapses both call sites onto one
+  implementation and is what the new theme-aware render paths
+  import from.
+
+### Tests
+
+- 1 new Pilot regression test seeds a claude-code session and
+  asserts that the Timeline `pre_tool` prefix and the Help overlay
+  body contain the Claude accent hex (`#e08a6a`) and NOT the
+  literal `"cyan"` anywhere. Catches future regressions where a
+  new render path forgets to thread the accent through.
+
 ## [0.14.0] — 2026-05-16 — Home menu: Theme + Config screens
 
 ### Fixed

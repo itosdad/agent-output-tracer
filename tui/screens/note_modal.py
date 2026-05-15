@@ -27,11 +27,11 @@ class NoteModal(ModalScreen[str | None]):
         height: auto;
         padding: 1 2;
         background: $panel;
-        border: round cyan;
+        border: round $accent;
     }
     NoteModal #note-label {
         height: 1;
-        color: cyan;
+        color: $accent;
         text-style: bold;
     }
     NoteModal #note-hint {

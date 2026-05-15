@@ -46,11 +46,11 @@ class CommandPalette(ModalScreen[None]):
         height: auto;
         padding: 1 2;
         background: $panel;
-        border: round cyan;
+        border: round $accent;
     }
     CommandPalette #palette-label {
         height: 1;
-        color: cyan;
+        color: $accent;
         text-style: bold;
     }
     CommandPalette #palette-hint {

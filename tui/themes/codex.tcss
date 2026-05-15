@@ -1,7 +1,15 @@
-/* Codex CLI theme — source-verified from openai/codex (Rust workspace
- * codex-rs/tui/) commit c03cea4 (2026-05-15).
+/* Chrome styling — theme-neutral.
  *
- * Cited tokens (from source code, not branding):
+ * Historical note: this file used to be codex-specific (hardcoded
+ * `cyan`) when there was only one theme. Phase 3.A added a second
+ * theme (Claude / salmon), so every chrome rule was leaking the
+ * codex cyan onto the Claude theme. The fix is to read `$accent`
+ * — Textual's standard CSS variable, automatically bound to the
+ * active Theme dataclass's `accent` field — instead of literal
+ * colour names.
+ *
+ * Cited tokens from openai/codex (Rust workspace, codex-rs/tui/)
+ * commit c03cea4 (2026-05-15) — kept as design provenance:
  *   accent (dark bg):       Cyan + BOLD              tui/src/style.rs:44
  *   accent (light bg):      RGB(0,95,135) + BOLD     tui/src/style.rs:9,42
  *   diff add fg:            Green                    tui/src/diff_render.rs:1231
@@ -10,18 +18,14 @@
  *   tool detail prefix:     `  └ `                   tui/src/status_indicator_widget.rs:35
  *   quote gutter:           `  │ `                   tui/src/insert_history.rs:634
  *
- * Codex is deliberately borderless prose — borders appear only on
- * onboarding/modal/markdown table surfaces. We honour that here:
- * top-level chrome uses backgrounds and color rules, not boxes.
- *
- * IMPORTANT: We do NOT redefine Textual's standard color tokens
- * ($accent, $surface, $panel, …). Doing so corrupts Textual's
- * internal default CSS (e.g. `Screen.-maximized-view`'s `hatch: right
- * $panel`). Style our own widget classes by id/type instead.
+ * IMPORTANT: We READ standard Textual tokens ($accent, $surface,
+ * $panel, $text-muted) but never REDEFINE them — that corrupts
+ * Textual's internal default CSS (e.g. `Screen.-maximized-view`'s
+ * `hatch: right $panel`).
  */
 
 Breadcrumb {
-    color: cyan;
+    color: $accent;
     text-style: bold;
 }
 
@@ -52,6 +56,6 @@ InlinePrompt {
 }
 
 InlinePrompt > Static.prompt-label {
-    color: cyan;
+    color: $accent;
     text-style: bold;
 }

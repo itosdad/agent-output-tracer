@@ -168,10 +168,13 @@ class SessionsScreen(AOTScreen):
             empty.append(" if you expected sessions here.", style="dim")
             ol.add_option(Option(empty))
             return
+        from tui._accent import accent
+
+        col = accent(self.app)
         for i, meta in enumerate(sessions):
             sid = meta.get("session_id") or "?"
             self._sids.append(sid)
-            ol.add_option(Option(_render_session(meta, is_latest=(i == 0)), id=sid))
+            ol.add_option(Option(_render_session(meta, is_latest=(i == 0), accent_col=col), id=sid))
         # OptionList does not auto-highlight after `add_option()` (only
         # after init-time options), so without this Enter is a no-op
         # on first focus.
@@ -211,14 +214,14 @@ def _run_export(app, session_id: str, values: dict | None, data_dir) -> None:
     app.notify(f"exported → {label}", severity="information", title="aot", timeout=3)
 
 
-def _render_session(meta: dict, *, is_latest: bool) -> Text:
+def _render_session(meta: dict, *, is_latest: bool, accent_col: str = "cyan") -> Text:
     """Two-line Rich Text rendering: id line + metadata line."""
     sid = meta.get("session_id") or "?"
     engine = meta.get("engine") or "?"
     ts_end = short_time(meta.get("ts_end"))
     count = meta.get("tool_calls_total", 0)
     text = Text()
-    text.append("● " if is_latest else "  ", style="bold cyan" if is_latest else "dim")
+    text.append("● " if is_latest else "  ", style=f"bold {accent_col}" if is_latest else "dim")
     text.append(sid[:8], style="bold")
     text.append("\n")
     text.append("  ")

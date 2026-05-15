@@ -1474,6 +1474,85 @@ async def test_statusbar_shimmer_toggles_on_follow(plugin_data_dir):
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
+async def test_theme_accent_propagates_through_chrome_and_content(plugin_data_dir):
+    """Regression: before this fix, several render() paths hardcoded
+    `bold cyan` instead of reading the active theme's accent. Result:
+    on the Claude theme you'd see salmon chrome + cyan latest-marker /
+    cyan pre_tool prefix / cyan help heading — a "mixed" look that
+    didn't actually follow the engine.
+
+    Verify each rendered Text contains the theme's accent hex (not
+    the literal word "cyan") when the Claude theme is active.
+    """
+    from textual.widgets import OptionList, Static
+
+    from core.recorder import append_event
+    from tui.app import AOTApp
+    from tui.themes import CLAUDE_THEME
+
+    # Two events so the Timeline renders a pre_tool prefix (the one
+    # event type whose colour follows the accent).
+    base = {
+        "v": 1,
+        "engine": "claude-code",
+        "session_id": "accent-001",
+        "cwd": "/p",
+        "tool_name": None,
+        "tool_input": None,
+        "tool_response": None,
+        "agent_response_text": None,
+        "user_prompt_text": None,
+        "stop_reason": None,
+        "paths": [],
+        "command": None,
+        "result_bytes": 0,
+        "raw_event": {},
+    }
+    append_event(
+        {
+            **base,
+            "event_type": "user_prompt",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "user_prompt_text": "hi",
+        },
+        data_dir=plugin_data_dir,
+    )
+    append_event(
+        {
+            **base,
+            "event_type": "pre_tool",
+            "ts": "2026-05-15T10:00:01.000+00:00",
+            "tool_name": "Read",
+            "paths": ["/p/x.md"],
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp("accent-001", data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.theme == CLAUDE_THEME.name
+        claude_accent = CLAUDE_THEME.accent  # "#e08a6a"
+
+        # Timeline pre_tool prefix carries the Claude accent, not cyan.
+        ol = app.screen.query_one(OptionList)
+        # The pre_tool event is option index 1 (after the user_prompt).
+        pre_tool_opt = ol.get_option_at_index(1)
+        spans_repr = repr(pre_tool_opt.prompt)
+        assert claude_accent in spans_repr
+        assert "cyan" not in spans_repr
+
+        # Help overlay: heading + key column should use the Claude accent.
+        await pilot.press("question_mark")
+        await pilot.pause()
+        body = app.screen.query_one("#help-body", Static)
+        spans_repr = repr(body.content)
+        assert claude_accent in spans_repr
+        assert "cyan" not in spans_repr
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
 async def test_home_theme_row_drills_into_theme_screen(plugin_data_dir):
     """Home → Theme row → ThemeScreen → Enter applies and pops back.
     Regression for v0.13.0 where the Theme row was marked disabled."""

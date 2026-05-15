@@ -36,20 +36,14 @@ class FooterHints(Widget):
         self.refresh()
 
     def render(self) -> Text:
-        accent = _accent(self.app)
+        from tui._accent import accent
+
+        col = accent(self.app)
         text = Text()
         for i, (key, label) in enumerate(self._hints):
             if i > 0:
                 text.append("   ")
-            text.append(key, style=f"bold {accent}")
+            text.append(key, style=f"bold {col}")
             text.append(" ")
             text.append(label, style="dim")
         return text
-
-
-def _accent(app) -> str:
-    """Read the current theme's accent color, falling back to cyan."""
-    try:
-        return app.current_theme.accent or "cyan"
-    except Exception:
-        return "cyan"

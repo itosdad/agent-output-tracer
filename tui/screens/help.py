@@ -46,7 +46,7 @@ class HelpOverlay(ModalScreen[None]):
         max-height: 80%;
         padding: 1 2;
         background: $panel;
-        border: round cyan;
+        border: round $accent;
     }
     HelpOverlay #help-body {
         height: auto;
@@ -80,24 +80,27 @@ class HelpOverlay(ModalScreen[None]):
         self.dismiss(None)
 
     def _render_body(self) -> Text:
+        from tui._accent import accent
+
+        col = accent(self.app)
         text = Text()
-        text.append(f"help · {self._screen_title}\n\n", style="bold cyan")
+        text.append(f"help · {self._screen_title}\n\n", style=f"bold {col}")
 
         if self._entries:
             text.append("This screen\n", style="bold")
             for key, label in self._entries:
-                _append_help_row(text, key, label)
+                _append_help_row(text, key, label, accent_col=col)
             text.append("\n")
 
         text.append("Global\n", style="bold")
         for key, label in GLOBAL_HELP_ENTRIES:
-            _append_help_row(text, key, label)
+            _append_help_row(text, key, label, accent_col=col)
         return text
 
 
-def _append_help_row(text: Text, key: str, label: str) -> None:
+def _append_help_row(text: Text, key: str, label: str, *, accent_col: str = "cyan") -> None:
     # Two-column row: `<key:12>  <label>`. The 12-col reservation keeps
     # the second column aligned without being so wide that long-name
     # labels wrap on a 56-col modal.
-    text.append(f"  {key:<12}", style="bold cyan")
+    text.append(f"  {key:<12}", style=f"bold {accent_col}")
     text.append(f"  {label}\n")
