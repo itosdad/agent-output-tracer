@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 ENGINE_ID = "claude-code"
@@ -31,9 +31,9 @@ def _now_iso_ms(now: Callable[[], datetime] | None) -> str:
     if now is not None:
         moment = now()
     else:
-        moment = datetime.now(UTC).astimezone()
+        moment = datetime.now(timezone.utc).astimezone()
     if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=UTC)
+        moment = moment.replace(tzinfo=timezone.utc)
     return moment.isoformat(timespec="milliseconds")
 
 

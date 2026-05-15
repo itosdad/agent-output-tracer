@@ -82,6 +82,9 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B"]
 # Hook scripts must run under whatever python3 the user has on PATH (incl.
-# the 3.9 macOS system Python). Disable pyupgrade rules that emit 3.10+/3.11+
-# syntax suggestions in this directory.
+# the 3.9 macOS system Python). The recorder pipeline (hooks → adapters → core)
+# is loaded in that process, so this directory tree is held to 3.9 compatibility:
+# disable pyupgrade rules that would emit 3.10+/3.11+ syntax suggestions.
 "hooks/*" = ["UP006", "UP007", "UP017", "UP035", "UP045"]
+"adapters/*" = ["UP006", "UP007", "UP017", "UP035", "UP045"]
+"core/*" = ["UP006", "UP007", "UP017", "UP035", "UP045"]
