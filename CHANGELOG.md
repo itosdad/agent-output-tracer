@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-05-16 — Home menu: Theme + Config screens
+
+### Fixed
+
+- **Theme and Config rows on Home were dead.** They were marked
+  `available=False` (showing `(Phase 2)`) and the router fell
+  through to `bell()`. Phase 3.A wired the `t` cycle and Phase 3.B
+  wired sticky-defaults persistence, but neither surfaced through
+  Home — a user picking either row got nothing. Both rows now
+  drill into real screens.
+
+### Added
+
+- **ThemeScreen** (`Home → Theme`). Lists the two engine themes
+  (Codex / Claude) with a `●` marker on whichever is currently
+  active. Enter applies the highlighted theme and pops back to
+  Home with a toast confirmation. The universal `t` cycle binding
+  still works in parallel for power users.
+- **ConfigScreen** (`Home → Config`). Read-only viewer of the
+  sticky-defaults persisted under `~/.config/aot/config.toml`,
+  including the file path itself, the known history keys with
+  their stored values, and a note that theme is intentionally
+  not persisted. `c` clears all sticky defaults via a new
+  `tui.config.clear_history()` helper; `r` re-reads from disk.
+- **`tui.config.clear_history()`** wipes the `[history]` section
+  without going through the merge path. The old
+  `save_config({"history": {}})` round-trip hit
+  `_deep_merge`, which recurses into nested dicts and preserved
+  every existing key — so "clear" was a no-op. The new helper
+  pops the section and rewrites the file directly.
+
+### Tests
+
+- 2 new Pilot tests: Home → Theme picker → apply → Home with the
+  theme actually changed; Home → Config → `c` actually clears the
+  persisted history.
+
 ## [0.13.1] — 2026-05-16 — Package `tui.themes` in the wheel
 
 ### Fixed

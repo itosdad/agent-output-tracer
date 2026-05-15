@@ -77,6 +77,22 @@ def set_history(key: str, value: Any) -> None:
     save_config({"history": {key: value}})
 
 
+def clear_history() -> None:
+    """Wipe the `[history]` section without going through the merge
+    path (which would recurse and preserve existing keys). Other
+    top-level sections, if we ever add them, are left untouched."""
+    try:
+        path = _config_path()
+        if not path.exists():
+            return
+        current = load_config()
+        current.pop("history", None)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_encode_toml(current), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def _deep_merge(base: dict, overlay: dict) -> dict:
     """Recursive dict merge — overlay wins on scalar collisions."""
     out = dict(base)

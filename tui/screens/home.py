@@ -59,8 +59,8 @@ class HomeScreen(AOTScreen):
             _menu_item("search", "Search", "regex search in the latest session"),
             _menu_item("stats", "Stats", "session metrics"),
             _menu_item("doctor", "Doctor", "self-diagnostic"),
-            _menu_item("theme", "Theme", "engine: codex (Phase 3 adds Claude)", available=False),
-            _menu_item("config", "Config", "CLI defaults", available=False),
+            _menu_item("theme", "Theme", "switch engine theme (codex / claude)"),
+            _menu_item("config", "Config", "sticky defaults · history viewer"),
             id="home-list",
         )
 
@@ -108,5 +108,14 @@ class HomeScreen(AOTScreen):
 
             self.app.push_screen(SearchScreen())
             return
-        # Phase 2 routes still pending — beep until wired.
+        if key == "theme":
+            from tui.screens.theme import ThemeScreen
+
+            self.app.push_screen(ThemeScreen())
+            return
+        if key == "config":
+            from tui.screens.config import ConfigScreen
+
+            self.app.push_screen(ConfigScreen())
+            return
         self.app.bell()

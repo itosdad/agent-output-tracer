@@ -1474,6 +1474,90 @@ async def test_statusbar_shimmer_toggles_on_follow(plugin_data_dir):
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
+async def test_home_theme_row_drills_into_theme_screen(plugin_data_dir):
+    """Home → Theme row → ThemeScreen → Enter applies and pops back.
+    Regression for v0.13.0 where the Theme row was marked disabled."""
+    from textual.widgets import OptionList
+
+    from tui.app import AOTApp
+    from tui.themes import CLAUDE_THEME, CODEX_THEME
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        ol = app.screen.query_one(OptionList)
+        # Find the Theme row by id rather than depending on its index.
+        for i in range(ol.option_count):
+            if ol.get_option_at_index(i).id == "theme":
+                ol.highlighted = i
+                break
+        else:
+            raise AssertionError("Theme row not found on Home")
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "ThemeScreen"
+
+        # Highlight whichever theme isn't currently active and apply.
+        starting = app.theme
+        target = CLAUDE_THEME.name if starting == CODEX_THEME.name else CODEX_THEME.name
+        ol = app.screen.query_one(OptionList)
+        for i in range(ol.option_count):
+            if ol.get_option_at_index(i).id == target:
+                ol.highlighted = i
+                break
+        await pilot.press("enter")
+        await pilot.pause()
+        # ThemeScreen pops back to Home after applying.
+        assert app.screen.__class__.__name__ == "HomeScreen"
+        assert app.theme == target
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_home_config_row_drills_into_config_screen(plugin_data_dir, tmp_path, monkeypatch):
+    """Home → Config row → ConfigScreen renders the persisted history,
+    and `c` clears it."""
+    monkeypatch.setenv("AOT_CONFIG_HOME", str(tmp_path))
+    from textual.widgets import OptionList, Static
+
+    from tui.app import AOTApp
+    from tui.config import get_history, set_history
+
+    set_history("trace_phrase", "hooks_wiring")
+    set_history("find_vocab", "hallucinations")
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        ol = app.screen.query_one(OptionList)
+        for i in range(ol.option_count):
+            if ol.get_option_at_index(i).id == "config":
+                ol.highlighted = i
+                break
+        else:
+            raise AssertionError("Config row not found on Home")
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "ConfigScreen"
+
+        body = app.screen.query_one("#config-body", Static)
+        text = str(body.content)
+        assert "trace_phrase" in text
+        assert "hooks_wiring" in text
+        assert "find_vocab" in text
+
+        # `c` clears the history; subsequent reads return None.
+        await pilot.press("c")
+        await pilot.pause()
+        assert get_history("trace_phrase") is None
+        assert get_history("find_vocab") is None
+        text = str(body.content)
+        # Empty-state copy must surface now.
+        assert "none recorded yet" in text
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
 async def test_empty_state_microcopy_is_actionable(plugin_data_dir):
     """When Sessions has no rows, the empty card must point users at
     the action that recovers them (running a tool call / `aot doctor`).
