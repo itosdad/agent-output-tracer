@@ -1,0 +1,51 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract release notes for this tag from CHANGELOG
+        id: notes
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+
+          # Pull the section between "## [VERSION]" and the next "## ["
+          # header. If no match, fall back to a one-liner pointing at
+          # CHANGELOG.md.
+          awk -v ver="$VERSION" '
+            BEGIN { found = 0 }
+            /^## \[/ {
+              if (found) exit
+              if ($0 ~ "^## \\[" ver "\\]") {
+                found = 1
+                next
+              }
+            }
+            found { print }
+          ' CHANGELOG.md > /tmp/release-body.md
+
+          if [ ! -s /tmp/release-body.md ]; then
+            echo "No CHANGELOG section found for $VERSION; using fallback." >&2
+            echo "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md) for details." > /tmp/release-body.md
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file /tmp/release-body.md \
+            --latest

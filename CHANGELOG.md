@@ -93,3 +93,5 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   test asserts `append_event` averages <15ms per call (DESIGN §9.5) and
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
+
+[0.1.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.1.0
