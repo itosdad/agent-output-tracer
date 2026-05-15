@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.1] — 2026-05-16 — Package `tui.themes` in the wheel
+
+### Fixed
+
+- **`ImportError: cannot import name 'CLAUDE_THEME' from 'tui.themes'`**
+  on every pipx-installed build of v0.10.0 through v0.13.0. Phase
+  3.A added `tui/themes/__init__.py` (turning the previously
+  `.tcss`-only directory into a real Python subpackage) but the
+  `[tool.setuptools].packages` list was never updated, so the wheel
+  shipped the module's `.tcss` files (via `package-data`) without
+  the `__init__.py`. Adding `"tui.themes"` to `packages` makes
+  `aot tui` start again on a fresh install.
+
+### Notes
+
+- A development install (`pip install -e .`) didn't hit this because
+  editable mode imports from the working tree. The bug only
+  surfaced once a wheel was actually built and installed — which is
+  exactly the path users take.
+
 ## [0.13.0] — 2026-05-16 — Phase 3.D: Visual polish (closes Phase 3)
 
 ### Added
