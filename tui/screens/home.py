@@ -54,7 +54,7 @@ class HomeScreen(AOTScreen):
     def compose_body(self):
         yield OptionList(
             _menu_item("sessions", "Sessions", "browse captured sessions"),
-            _menu_item("find", "Find", "anomaly vocabulary detection", available=False),
+            _menu_item("find", "Find", "anomaly vocabulary detection"),
             _menu_item("trace", "Trace", "causal trail for an output phrase", available=False),
             _menu_item("search", "Search", "full-text across sessions", available=False),
             _menu_item("stats", "Stats", "session metrics"),
@@ -92,6 +92,11 @@ class HomeScreen(AOTScreen):
             from tui.screens.doctor import DoctorScreen
 
             self.app.push_screen(DoctorScreen())
+            return
+        if key == "find":
+            from tui.screens.find import FindScreen
+
+            self.app.push_screen(FindScreen())
             return
         # Phase 2 routes still pending — beep until wired.
         self.app.bell()

@@ -380,6 +380,86 @@ async def test_enter_on_event_row_drills_into_event_detail(plugin_data_dir):
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
+async def test_home_drills_into_find_then_results_then_event(plugin_data_dir):
+    """Full Phase 2.C path: Home → Find → vocab pick → FindResults →
+    Enter on a match → EventDetail."""
+    from textual.widgets import OptionList
+
+    from core.recorder import append_event
+    from tui.app import AOTApp
+
+    # Seed a session where 'hallucinations' will definitely fire:
+    # agent names a path nobody mentioned and no Read produced.
+    base_ev = {
+        "v": 1,
+        "engine": "claude-code",
+        "session_id": "find-001",
+        "cwd": "/p",
+        "tool_name": None,
+        "tool_input": None,
+        "tool_response": None,
+        "agent_response_text": None,
+        "user_prompt_text": None,
+        "stop_reason": None,
+        "paths": [],
+        "command": None,
+        "result_bytes": 0,
+        "raw_event": {},
+    }
+    append_event(
+        {
+            **base_ev,
+            "event_type": "user_prompt",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "user_prompt_text": "do something",
+        },
+        data_dir=plugin_data_dir,
+    )
+    append_event(
+        {
+            **base_ev,
+            "event_type": "agent_response",
+            "ts": "2026-05-15T10:00:01.000+00:00",
+            "agent_response_text": "Reading /proj/ghost.md to investigate",
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        # Home → Find (index 1)
+        ol = app.screen.query_one(OptionList)
+        ol.highlighted = 1
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "FindScreen"
+
+        # Pick 'hallucinations' — it's the 6th entry (index 5) in VOCAB.
+        # We could rely on default ordering; safer to find by id.
+        ol = app.screen.query_one(OptionList)
+        for i in range(ol.option_count):
+            if ol.get_option_at_index(i).id == "hallucinations":
+                ol.highlighted = i
+                break
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "FindResultsScreen"
+
+        # Enter on the first match → EventDetail
+        ol = app.screen.query_one(OptionList)
+        assert ol.option_count >= 1
+        # If the first row is a "no matches" placeholder it has no id.
+        first = ol.get_option_at_index(0)
+        assert first.id is not None, "expected at least one hallucination match"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "EventDetailScreen"
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
 async def test_home_drills_into_doctor(plugin_data_dir):
     """Home → Doctor menu item lands on DoctorScreen, which renders the
     same check vocabulary the CLI uses."""
