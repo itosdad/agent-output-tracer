@@ -30,3 +30,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   already a string. Injectable `now` for deterministic tests.
   `core/normalizer.py` dispatches by engine. 31 unit tests covering all
   event types, both happy paths and malformed inputs.
+- Phase A-3: `core/path_utils.py` (data-dir resolution from
+  `CLAUDE_PLUGIN_DATA`, session_id traversal guard) and `core/recorder.py`
+  (`append_event` → `<data_dir>/sessions/<session_id>/events.jsonl` plus
+  `metadata.json` with ts_start / ts_end / tool_calls_total /
+  user_prompts_count / agent_responses_count / unique_files_read /
+  total_bytes_read). Metadata is rewritten atomically via temp+rename
+  and self-heals if found corrupt. `hooks/pre_tool_use.py` rewritten to
+  feed real events through the normalizer → recorder chain. e2e smoke
+  confirmed under macOS system Python 3.9.6. 20 new recorder tests; 51
+  total pass.
+- Phase A-4: All 5 hook scripts (`user_prompt_submit` / `pre_tool_use` /
+  `post_tool_use` / `stop` / `session_end`) now feed real events through
+  the normalizer → recorder chain. Common pipeline factored into
+  `hooks/_runner.run_hook(event_type)`. Transitional install-verify
+  helper removed. New integration suite `tests/integration/test_hook_scripts.py`
+  runs each script as a real subprocess: well-formed event, bad JSON,
+  empty stdin, missing env, pre/post pair round-trip, full 5-hook session.
+  74 total pass.

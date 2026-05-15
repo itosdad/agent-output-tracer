@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SessionEnd hook — Phase A-1 install-verify mode."""
+"""SessionEnd hook entry point. Silent / failure-tolerant."""
 
 from __future__ import annotations
 
@@ -8,16 +8,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _install_verify import record  # noqa: E402
+from _runner import run_hook  # noqa: E402
 
 
-def main() -> None:
-    try:
-        record("SessionEnd")
-    except Exception:  # noqa: BLE001
-        pass
-    sys.exit(0)
+def main():
+    run_hook("session_end")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        sys.exit(0)
