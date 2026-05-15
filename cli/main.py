@@ -50,7 +50,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p_replay.add_argument(
         "--session",
         required=True,
-        help="Session id (or 'latest' once Phase A-7 lands).",
+        help=(
+            "Session spec: full id, short prefix (>=4 chars), 'latest', "
+            "'latest-N', or 'YYYY-MM-DD'."
+        ),
     )
     p_replay.add_argument(
         "--format",
@@ -65,6 +68,30 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Emit anomaly hints alongside the timeline (Phase B-8).",
     )
 
+    # list
+    p_list = subparsers.add_parser(
+        "list",
+        help="List captured sessions (newest first).",
+    )
+    p_list.add_argument(
+        "--last",
+        type=int,
+        default=None,
+        help="Show only the N most recent sessions.",
+    )
+    p_list.add_argument(
+        "--format",
+        dest="fmt",
+        choices=["text", "json"],
+        default="text",
+    )
+
+    # latest
+    subparsers.add_parser(
+        "latest",
+        help="Print the most-recent session id.",
+    )
+
     return parser
 
 
@@ -74,17 +101,45 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.cmd == "replay":
         from core.session_io import SessionNotFoundError
+        from core.session_resolver import (
+            AmbiguousSessionSpec,
+            SessionSpecNotFound,
+            resolve_session_id,
+        )
         from query.replay import replay
 
         try:
+            resolved = resolve_session_id(args.session, data_dir=args.data_dir)
             replay(
-                args.session,
+                resolved,
                 data_dir=args.data_dir,
                 fmt=args.fmt,
                 show_hints=args.show_hints,
                 stream=sys.stdout,
             )
-        except SessionNotFoundError as exc:
+        except (SessionNotFoundError, SessionSpecNotFound, AmbiguousSessionSpec) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        return 0
+
+    if args.cmd == "list":
+        from query.list_sessions import list_command
+
+        list_command(
+            data_dir=args.data_dir,
+            last=args.last,
+            fmt=args.fmt,
+            stream=sys.stdout,
+        )
+        return 0
+
+    if args.cmd == "latest":
+        from core.session_resolver import SessionSpecNotFound
+        from query.latest import latest_command
+
+        try:
+            latest_command(data_dir=args.data_dir, stream=sys.stdout)
+        except SessionSpecNotFound as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
         return 0

@@ -65,3 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   argparse entry exposed as the `agent-output-tracer` console script.
   e2e demo (5 hooks → recorder → replay) verified under macOS system
   Python 3.9.6 + dev venv. 128 total pass.
+- Phase A-7: session navigation. `core/session_resolver.py` parses
+  DESIGN §8.3 specs (`latest`, `latest-N`, full id, ≥4-char unique
+  prefix, ISO date `YYYY-MM-DD`). `AmbiguousSessionSpec` raised on
+  multi-match prefixes. New CLI subcommands `list` (text table or
+  `--format json`, optional `--last N`) and `latest`. `replay
+  --session` accepts every spec form. 149 total pass.
