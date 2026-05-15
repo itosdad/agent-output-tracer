@@ -20,13 +20,12 @@ vs "context rot" vs "wrong tool") and **user-driven** (no proactive alerts;
 you decide when something needs investigation). Hooks are observation-only
 — the agent is never blocked.
 
-**Current: v0.6.0** — Phase A (capture) + Phase B (forensic query
-suite) + Phase C (Codex CLI support) + Phase D-1..D-7 (UX foundation,
-schema v2, causal core: `find` / `bisect` / `note` / `stats` / inverse
-trace, live `tail` + `replay --watch`, side-channel `aot tui`, opt-in
-bridges incl. OTel, safe-share `aot export`). 417 tests pass on Python
-3.13; hook runtime still verified under Python 3.9. See
-[`CHANGELOG.md`](CHANGELOG.md).
+**Current: v0.7.0** — Phase A/B/C/D as in v0.6.0, plus the v0.7.0 TUI
+redesign Phase 1 (Home menu, screen-based drill-in/out, source-cited
+Codex theme) and the hallucination detector overhaul (time-causality,
+self-paste resilience, ASCII-only path tokeniser, URL scheme
+preservation). 461 tests pass on Python 3.13; hook runtime still
+verified under Python 3.9. See [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 

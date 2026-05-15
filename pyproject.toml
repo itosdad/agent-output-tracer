@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-output-tracer"
-version = "0.6.0"
+version = "0.7.0"
 description = "Universal AI agent session forensic debugger. Replay, trace, and query agent behavior when output looks wrong."
 readme = "README.md"
 license = { text = "MIT" }
@@ -55,7 +55,20 @@ Issues = "https://github.com/itosdad/agent-output-tracer/issues"
 Changelog = "https://github.com/itosdad/agent-output-tracer/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
-packages = ["adapters", "core", "query", "analyzer", "cli", "tui", "bridges"]
+packages = [
+    "adapters",
+    "core",
+    "query",
+    "analyzer",
+    "cli",
+    "tui",
+    "tui.screens",
+    "tui.widgets",
+    "bridges",
+]
+
+[tool.setuptools.package-data]
+tui = ["themes/*.tcss"]
 
 [tool.pytest.ini_options]
 minversion = "7.4"

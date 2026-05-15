@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-05-15
+
+TUI redesign Phase 1 and the hallucination detector overhaul. 461
+tests pass on Python 3.13; the textual-missing CLI test skips when
+textual is installed in dev.
+
+### Added
+
+- **TUI screen-based navigation.** The TUI is being repositioned from
+  a 2-pane session browser into the tracer's primary console. Phase 1
+  ships a screen router with universal Esc-to-go-back, a Home menu
+  listing every top-level operation, and dedicated Sessions / Timeline
+  / Event Detail screens. Enter drills in; Esc pops back; `q` quits;
+  `?` `:` `t` are reserved for help / command palette / theme toggle
+  (Phase 2+).
+- **Codex theme tokens.** Source-cited from openai/codex Rust workspace
+  (`codex-rs/tui/`): cyan accent, borderless prose, `›` user prefix,
+  `  └ ` tool detail, `  │ ` quote gutter, `•` semantic bullets. Every
+  value documented with a file:line evidence pointer.
+- **Semantic event prefixes** on the Timeline screen: `›` user_prompt,
+  `⏵` pre_tool, `✓` post_tool, `•` agent_response, `─` session
+  markers.
+- **Input widget skeletons** for Phase 2 command wiring: `InlinePrompt`
+  (lazygit-style bottom row with ↑/↓ history recall) and `ModalForm`
+  (text / bool / enum / number fields, full keyboard navigation).
+
+### Fixed
+
+- **Hallucination detectors — four real bugs.** `_hallucinations`,
+  `_unmentioned_reads`, and `mentioned_but_not_read` previously
+  treated the entire session as one bag of text, which let a user
+  prompt that arrived AFTER an agent response retroactively "ground"
+  the agent's claim. Time-causality is now respected. When the operator
+  pastes a prior `aot find` output into the next prompt, the detector
+  now recognises the CLI output fingerprint and excises it before
+  treating the prompt as a grounding source — the detector no longer
+  silently consumes its own warnings. The token extractor restricts
+  path content to ASCII (so Japanese prose like "メール/電話/長い hex"
+  no longer matches as a path) and preserves URL schemes
+  (`https://github.com/...` survives intact instead of degenerating
+  to `//github.com/...`). 27 new unit tests pin these behaviours.
+- **`aot doctor`** now probes Claude Code marketplace clones
+  (`~/.claude/plugins/marketplaces/*/hooks/hooks.json`) and the Codex
+  plugin cache, so pipx-installed CLIs no longer report a spurious
+  "hooks.json not found" failure.
+- **`resolve_data_dir`** scans `~/.claude/plugins/data/agent-output-tracer*`
+  to find the actual Claude Code data directory (which is named
+  `<plugin>-<marketplace>` on disk, not the bare plugin name).
+
+### Changed
+
+- `aot tui` (no flag) now lands on the Home screen instead of
+  deep-linking to "latest". `aot tui --session <id>` still drills
+  directly into a timeline, with Home + Sessions pre-pushed on the
+  stack so Esc/Esc walks back to Home.
+- Package layout: `tui.screens` and `tui.widgets` are explicit
+  subpackages; `tui/themes/*.tcss` ships as package data.
+
 ## [0.6.0] — 2026-05-15
 
 Phase D-2 through D-7 — schema v2, causal core, live UX, side-channel
@@ -363,6 +421,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.7.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.7.0
 [0.6.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.6.0
 [0.5.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.5.0
 [0.4.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.4.0
