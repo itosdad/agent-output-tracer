@@ -56,7 +56,7 @@ class HomeScreen(AOTScreen):
             _menu_item("sessions", "Sessions", "browse captured sessions"),
             _menu_item("find", "Find", "anomaly vocabulary detection"),
             _menu_item("trace", "Trace", "causal trail for an output phrase"),
-            _menu_item("search", "Search", "full-text across sessions", available=False),
+            _menu_item("search", "Search", "regex search in the latest session"),
             _menu_item("stats", "Stats", "session metrics"),
             _menu_item("doctor", "Doctor", "self-diagnostic"),
             _menu_item("theme", "Theme", "engine: codex (Phase 3 adds Claude)", available=False),
@@ -102,6 +102,11 @@ class HomeScreen(AOTScreen):
             from tui.screens.trace import TraceScreen
 
             self.app.push_screen(TraceScreen())
+            return
+        if key == "search":
+            from tui.screens.search import SearchScreen
+
+            self.app.push_screen(SearchScreen())
             return
         # Phase 2 routes still pending — beep until wired.
         self.app.bell()

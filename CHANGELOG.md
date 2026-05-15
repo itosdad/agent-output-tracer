@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.4] — 2026-05-15 — Phase 2.E: Search screen
+
+### Added
+
+- **Search screen** (Home → Search) — regex full-text search across
+  every string-valued field of every event in the latest session
+  (same field set the CLI `aot grep` walks). Input is the focal
+  element; ↑/↓ recalls previous queries from a process-local ring.
+- **SearchResults screen** renders one match per row (`event_type.
+  field` + truncated preview) and drills into Event Detail on Enter.
+  Cross-session fan-out is deferred to Phase 2.G (`:search <regex>`
+  without a session scope will hit the global index).
+
 ## [0.9.3] — 2026-05-15 — Phase 2.D: Trace screen
 
 ### Added
@@ -581,6 +594,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.9.4]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.4
 [0.9.3]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.3
 [0.9.2]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.2
 [0.9.1]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.1
