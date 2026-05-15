@@ -43,3 +43,10 @@ Thumbs.db
 # Local notes
 SCRATCH.md
 TODO.local.md
+
+# Parent Claude Code session runtime artifacts (this repo can be opened as
+# the cwd of an outer Claude Code session during plugin development; that
+# session's bookkeeping files leak into the working tree and must not be
+# tracked).
+.claude/
+tasks/
