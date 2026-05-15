@@ -99,6 +99,53 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_diff.add_argument("--session", required=True)
 
+    # causal-graph
+    p_cg = subparsers.add_parser(
+        "causal-graph",
+        help="Render the session as a mermaid causal graph.",
+    )
+    p_cg.add_argument("--session", required=True)
+    p_cg.add_argument(
+        "--output",
+        default=None,
+        help="Write to this file (markdown). Defaults to stdout.",
+    )
+
+    # gc
+    p_gc = subparsers.add_parser(
+        "gc",
+        help="Apply retention policy (strip content >archive_days, delete >delete_days).",
+    )
+    p_gc.add_argument(
+        "--archive-days",
+        type=int,
+        default=30,
+        help="Strip content fields from sessions older than N days (default 30).",
+    )
+    p_gc.add_argument(
+        "--delete-days",
+        type=int,
+        default=365,
+        help="Remove session dirs older than N days (default 365).",
+    )
+    p_gc.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report what would happen without modifying anything.",
+    )
+
+    # export-trace
+    p_export = subparsers.add_parser(
+        "export-trace",
+        help="Bundle replay / diff / mentioned-but-not-read / causal-graph into one report.",
+    )
+    p_export.add_argument("--session", required=True)
+    p_export.add_argument(
+        "--output",
+        default=None,
+        help="Write the markdown report to this file. Defaults to stdout.",
+    )
+
     # mentioned-but-not-read
     p_mbnr = subparsers.add_parser(
         "mentioned-but-not-read",
@@ -237,6 +284,76 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             resolved = resolve_session_id(args.session, data_dir=args.data_dir)
             diff(resolved, data_dir=args.data_dir, stream=sys.stdout)
+        except (SessionNotFoundError, SessionSpecNotFound, AmbiguousSessionSpec) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        return 0
+
+    if args.cmd == "gc":
+        from core.retention import run_gc
+
+        result = run_gc(
+            data_dir=args.data_dir,
+            archive_days=args.archive_days,
+            delete_days=args.delete_days,
+            dry_run=args.dry_run,
+        )
+        prefix = "[dry-run] " if result["dry_run"] else ""
+        print(
+            f"{prefix}stripped {result['stripped_count']}, "
+            f"deleted {result['deleted_count']}, "
+            f"untouched {result['untouched_count']}, "
+            f"skipped {result['skipped_count']}."
+        )
+        if result["stripped"]:
+            print("Stripped:")
+            for s in result["stripped"]:
+                print(f"  - {s}")
+        if result["deleted"]:
+            print("Deleted:")
+            for s in result["deleted"]:
+                print(f"  - {s}")
+        return 0
+
+    if args.cmd == "export-trace":
+        from core.session_io import SessionNotFoundError
+        from core.session_resolver import (
+            AmbiguousSessionSpec,
+            SessionSpecNotFound,
+            resolve_session_id,
+        )
+        from query.export import export_trace
+
+        try:
+            resolved = resolve_session_id(args.session, data_dir=args.data_dir)
+            export_trace(
+                resolved,
+                data_dir=args.data_dir,
+                output_path=args.output,
+                stream=sys.stdout,
+            )
+        except (SessionNotFoundError, SessionSpecNotFound, AmbiguousSessionSpec) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        return 0
+
+    if args.cmd == "causal-graph":
+        from core.session_io import SessionNotFoundError
+        from core.session_resolver import (
+            AmbiguousSessionSpec,
+            SessionSpecNotFound,
+            resolve_session_id,
+        )
+        from query.causal_graph import causal_graph
+
+        try:
+            resolved = resolve_session_id(args.session, data_dir=args.data_dir)
+            causal_graph(
+                resolved,
+                data_dir=args.data_dir,
+                output_path=args.output,
+                stream=sys.stdout,
+            )
         except (SessionNotFoundError, SessionSpecNotFound, AmbiguousSessionSpec) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2

@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Phase B-6: `causal-graph` command — render a session as a mermaid
+  `graph TD` block with one node per event, linear edges, and dashed
+  `Glob → Read` arrows when a Read's path appeared in a prior Glob's
+  result. `--output <file>` writes the markdown bundle; stdout
+  otherwise. 10 unit tests.
+- Phase B-7: `export-trace` command — bundles replay (markdown) + diff
+  + mentioned-but-not-read + causal-graph into one forensic report
+  markdown. Metadata table at the top, sections under `## …`
+  headers. 6 unit tests.
+- Phase B-8: anomaly hints. `analyzer/anomaly_hints.detect_hints` runs
+  7 patterns from DESIGN §11 Phase B-8 — repeated_read,
+  routing_config_thrash, long_session_outlier (cross-session
+  percentile), config_drift (wrapper↔core within window),
+  namespace_bleed (boundary-prefix mixing), protected_bash_read,
+  skill_group_parallel (Task subagent_type within window). Wired into
+  `replay --show-hints` (text / json / markdown formats all emit them).
+  15 unit tests covering each pattern's hit and miss cases.
+- Phase B-9: `gc` command. `core.retention.run_gc` walks the data dir
+  and, per DESIGN §9.4, strips content fields (`tool_response`,
+  `agent_response_text`, `user_prompt_text`, `command`, `raw_event`)
+  for sessions older than `--archive-days` (default 30) while
+  preserving counters, then deletes session dirs older than
+  `--delete-days` (default 365). `--dry-run` reports without mutating.
+  Already-stripped sessions skipped on re-runs. Corrupt metadata
+  silently bypassed. 10 unit tests. 287 total pass.
+
 ## [0.2.0] — 2026-05-15
 
 Phase B-2 through B-5 — the high-value forensic commands. `trace` /

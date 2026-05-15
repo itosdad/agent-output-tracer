@@ -10,7 +10,7 @@ import json
 import sys
 from typing import IO
 
-from core.session_io import load_events, load_metadata
+from core.session_io import list_sessions, load_events, load_metadata
 from core.time_utils import human_bytes, short_time, truncate
 
 DEFAULT_TEXT_PROMPT_LIMIT = 200
@@ -32,18 +32,25 @@ def replay(
     events = load_events(session_id, data_dir=data_dir)
     metadata = load_metadata(session_id, data_dir=data_dir)
 
+    hints = []
+    if show_hints:
+        from analyzer.anomaly_hints import detect_hints
+
+        all_sessions = list_sessions(data_dir=data_dir)
+        hints = detect_hints(events, metadata=metadata, all_sessions=all_sessions)
+
     if fmt == "json":
-        _render_json(session_id, metadata, events, stream)
+        _render_json(session_id, metadata, events, stream, hints=hints)
     elif fmt == "markdown":
-        _render_markdown(session_id, metadata, events, stream)
+        _render_markdown(session_id, metadata, events, stream, hints=hints)
     else:
-        _render_text(session_id, metadata, events, stream, show_hints=show_hints)
+        _render_text(session_id, metadata, events, stream, hints=hints)
 
 
 # --------- text ----------
 
 
-def _render_text(session_id, metadata, events, stream, *, show_hints):
+def _render_text(session_id, metadata, events, stream, *, hints=None):
     stream.write(f"Session: {session_id}\n")
     if metadata:
         if metadata.get("ts_start"):
@@ -72,6 +79,13 @@ def _render_text(session_id, metadata, events, stream, *, show_hints):
 
     if not events:
         stream.write("(no events captured for this session)\n")
+
+    if hints:
+        stream.write("\nAnomaly hints:\n")
+        for h in hints:
+            sev = h.get("severity", "info").upper()
+            ts = short_time(h.get("ts")) if h.get("ts") else "--:--:--"
+            stream.write(f"  [{sev}] [{ts}] {h.get('pattern')}: {h.get('message')}\n")
 
 
 def _format_event_line(ev):
@@ -117,12 +131,14 @@ def _format_tool_call(ev):
 # --------- json ----------
 
 
-def _render_json(session_id, metadata, events, stream):
+def _render_json(session_id, metadata, events, stream, *, hints=None):
     payload = {
         "session_id": session_id,
         "metadata": metadata,
         "events": events,
     }
+    if hints:
+        payload["anomaly_hints"] = hints
     json.dump(payload, stream, ensure_ascii=False, indent=2)
     stream.write("\n")
 
@@ -130,7 +146,7 @@ def _render_json(session_id, metadata, events, stream):
 # --------- markdown ----------
 
 
-def _render_markdown(session_id, metadata, events, stream):
+def _render_markdown(session_id, metadata, events, stream, *, hints=None):
     stream.write(f"# Session {session_id}\n\n")
     if metadata:
         stream.write("| field | value |\n")
@@ -160,3 +176,10 @@ def _render_markdown(session_id, metadata, events, stream):
             stream.write(f"- `{line}` <!-- event_type={ev.get('event_type')} -->\n")
     if not events:
         stream.write("_(no events captured)_\n")
+
+    if hints:
+        stream.write("\n## Anomaly hints\n\n")
+        for h in hints:
+            sev = h.get("severity", "info").upper()
+            ts = short_time(h.get("ts")) if h.get("ts") else "--:--:--"
+            stream.write(f"- **[{sev}]** `[{ts}]` `{h.get('pattern')}`: {h.get('message')}\n")
