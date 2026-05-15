@@ -7,8 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-15
+
+Phase B-6 through B-9 — graphing, bundled forensic export, anomaly
+hints, and retention/GC. 296 tests pass on Python 3.13; hook runtime
+still 3.9-compatible.
+
+### Fixed
+
+- `mentioned-but-not-read`: trailing-slash tokens were never grounded
+  by user prompts because `os.path.basename("~/proj/hooks/")` returns
+  `""`. The token is now stripped of trailing slashes before basename
+  lookup, and the stripped form is also matched directly against
+  user_prompt and tool_response text. Caught on live-session smoke.
+
 ### Added
 
+- CLI integration tests for the Phase B-6..B-9 surface
+  (`tests/integration/test_cli_new_commands.py`): causal-graph stdout +
+  `--output`, export-trace stdout + `--output`, replay `--show-hints`
+  text + json, gc `--dry-run` + actual mutation. 8 new tests.
 - Phase B-6: `causal-graph` command — render a session as a mermaid
   `graph TD` block with one node per event, linear edges, and dashed
   `Glob → Read` arrows when a Read's path appeared in a prior Glob's
@@ -165,5 +183,6 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.3.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.3.0
 [0.2.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.2.0
 [0.1.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.1.0
