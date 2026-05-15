@@ -80,9 +80,7 @@ def _validate(key: str, value: str) -> object:
         return value
     if key == "user.name":
         return value
-    raise ValueError(
-        f"unknown config key {key!r}. Valid keys: {', '.join(sorted(DEFAULTS))}"
-    )
+    raise ValueError(f"unknown config key {key!r}. Valid keys: {', '.join(sorted(DEFAULTS))}")
 
 
 def _emit_toml(tree: dict) -> str:
@@ -145,9 +143,7 @@ def config_get(key: str, *, stream: IO[str] | None = None) -> int:
     if key in DEFAULTS:
         stream.write(f"{DEFAULTS[key]}\n")
         return 0
-    raise ValueError(
-        f"unknown config key {key!r}. Valid keys: {', '.join(sorted(DEFAULTS))}"
-    )
+    raise ValueError(f"unknown config key {key!r}. Valid keys: {', '.join(sorted(DEFAULTS))}")
 
 
 def config_set(key: str, value: str) -> int:
@@ -160,9 +156,7 @@ def config_set(key: str, value: str) -> int:
 
 def config_unset(key: str) -> int:
     if key not in DEFAULTS:
-        raise ValueError(
-            f"unknown config key {key!r}. Valid keys: {', '.join(sorted(DEFAULTS))}"
-        )
+        raise ValueError(f"unknown config key {key!r}. Valid keys: {', '.join(sorted(DEFAULTS))}")
     flat = _flatten(load_config())
     flat.pop(key, None)
     _save(_unflatten(flat))

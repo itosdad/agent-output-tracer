@@ -60,10 +60,7 @@ def stats(
 
 def _render_text(result, stream):
     stream.write(f"Session: {result['session_id']}\n")
-    stream.write(
-        f"  engine: {result['engine'] or '?'} "
-        f"({result['engine_version'] or '?'})\n"
-    )
+    stream.write(f"  engine: {result['engine'] or '?'} ({result['engine_version'] or '?'})\n")
     stream.write(f"  span: {result['ts_start']} → {result['ts_end']}\n")
     stream.write(f"  events: {result['events_total']}\n")
     stream.write(

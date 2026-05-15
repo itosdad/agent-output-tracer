@@ -132,9 +132,7 @@ def test_build_spans_includes_findings():
         events=[],
         metadata={
             "session_id": "s",
-            "findings": [
-                {"kind": "bisect_first_bad", "event_idx": 7, "steps": 3, "ts": "x"}
-            ],
+            "findings": [{"kind": "bisect_first_bad", "event_idx": 7, "steps": 3, "ts": "x"}],
         },
     )
     finding_spans = [s for s in spans if s["name"] == "aot.finding"]

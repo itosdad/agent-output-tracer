@@ -208,9 +208,7 @@ class AOTApp(App):
         self._update_status()
 
     async def action_pick_session(self) -> None:
-        chosen = await self.push_screen_wait(
-            SessionPicker(self._data_dir, self.session_id)
-        )
+        chosen = await self.push_screen_wait(SessionPicker(self._data_dir, self.session_id))
         if chosen:
             self._stop_follower()
             self.session_id = chosen
@@ -226,9 +224,7 @@ class AOTApp(App):
         self._update_status()
 
     def action_search(self) -> None:
-        self.push_screen(
-            _SearchPrompt(self._search_term), self._apply_search
-        )
+        self.push_screen(_SearchPrompt(self._search_term), self._apply_search)
 
     def action_quit(self) -> None:
         self._stop_follower()
@@ -276,9 +272,7 @@ class AOTApp(App):
         table = self.query_one("#timeline", DataTable)
         flag = "FOLLOW" if self.follow_enabled else "static"
         sid = self.session_id[:12] if self.session_id else "(none)"
-        status.update(
-            f" {sid} · events={table.row_count} · {flag} · q quit"
-        )
+        status.update(f" {sid} · events={table.row_count} · {flag} · q quit")
 
 
 class _SearchPrompt(ModalScreen[str | None]):

@@ -48,12 +48,7 @@ def tail(
 def _render_event(ev: dict) -> str:
     ts = short_time(ev.get("ts"))
     et = ev.get("event_type") or "?"
-    body = (
-        ev.get("user_prompt_text")
-        or ev.get("agent_response_text")
-        or ev.get("command")
-        or ""
-    )
+    body = ev.get("user_prompt_text") or ev.get("agent_response_text") or ev.get("command") or ""
     paths = ev.get("paths") or []
     tool = ev.get("tool_name") or ""
     extras = []

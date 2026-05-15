@@ -16,9 +16,7 @@ import re
 from collections.abc import Iterable
 from pathlib import Path
 
-_TS_RE = re.compile(
-    r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)"
-)
+_TS_RE = re.compile(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)")
 
 
 def claude_debug_log_path(session_id: str) -> Path:
@@ -70,12 +68,8 @@ def merge_with_events(
     Both inputs use ISO-8601 timestamps; the lexical order is correct
     for events from the same engine within a session. Overlay entries
     without a ts are emitted at the end."""
-    annotated_events = [
-        {**ev, "_source": "event"} for ev in events
-    ]
-    annotated_overlay = [
-        {**ov, "_source": "engine_log"} for ov in overlay
-    ]
+    annotated_events = [{**ev, "_source": "event"} for ev in events]
+    annotated_overlay = [{**ov, "_source": "engine_log"} for ov in overlay]
     everything = annotated_events + annotated_overlay
     everything.sort(key=lambda x: x.get("ts") or "~")  # None → end
     return everything

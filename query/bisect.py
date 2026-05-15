@@ -247,20 +247,11 @@ def _record_finding(session_id: str, first_bad: int, decisions: list, *, data_di
 def _render_state(state, events, stream, *, prefix: str = "") -> None:
     cand = int(state["candidate"])
     ev = events[cand]
-    stream.write(
-        f"{prefix}range [{state['lo']}, {state['hi']}], candidate=event {cand}\n"
-    )
-    stream.write(
-        f"  ts={ev.get('ts')} type={ev.get('event_type')} tool={ev.get('tool_name')}\n"
-    )
+    stream.write(f"{prefix}range [{state['lo']}, {state['hi']}], candidate=event {cand}\n")
+    stream.write(f"  ts={ev.get('ts')} type={ev.get('event_type')} tool={ev.get('tool_name')}\n")
     paths = ev.get("paths") or []
     if paths:
         stream.write(f"  paths={paths}\n")
-    body = (
-        ev.get("user_prompt_text")
-        or ev.get("agent_response_text")
-        or ev.get("command")
-        or ""
-    )
+    body = ev.get("user_prompt_text") or ev.get("agent_response_text") or ev.get("command") or ""
     if body:
         stream.write(f"  preview: {body[:120]!r}\n")

@@ -141,9 +141,7 @@ def _next_correlation_id(sdir: Path, event: dict) -> str:
     if et == "user_prompt" or not corr_file.exists():
         new_id = uuid.uuid4().hex
         try:
-            corr_file.write_text(
-                json.dumps({"current": new_id}), encoding="utf-8"
-            )
+            corr_file.write_text(json.dumps({"current": new_id}), encoding="utf-8")
         except OSError:
             pass
         return new_id
@@ -251,15 +249,20 @@ def _merge_event_into_metadata(meta: dict, event: dict) -> None:
     if meta.get("v", 1) < METADATA_SCHEMA_VERSION:
         meta.setdefault("notes_count", 0)
         meta.setdefault("findings", [])
-        meta.setdefault("anomaly_counters", {
-            "unmentioned_reads": 0,
-            "repeated_reads": 0,
-            "hallucination_candidates": 0,
-            "glob_burst": 0,
-            "routing_thrash": 0,
-            "large_read": 0,
-        })
-        meta.setdefault("tokens_total", {"input": 0, "output": 0, "cache_read": 0, "cache_creation": 0})
+        meta.setdefault(
+            "anomaly_counters",
+            {
+                "unmentioned_reads": 0,
+                "repeated_reads": 0,
+                "hallucination_candidates": 0,
+                "glob_burst": 0,
+                "routing_thrash": 0,
+                "large_read": 0,
+            },
+        )
+        meta.setdefault(
+            "tokens_total", {"input": 0, "output": 0, "cache_read": 0, "cache_creation": 0}
+        )
         meta.setdefault("engine_version", None)
         cwd = meta.get("cwd")
         if isinstance(cwd, str) and not meta.get("cwd_hash"):

@@ -71,9 +71,7 @@ def find(
     stream: IO[str] | None = None,
 ) -> dict:
     if vocab not in VOCAB:
-        raise ValueError(
-            f"unknown vocab {vocab!r}. Valid: {', '.join(VOCAB)}"
-        )
+        raise ValueError(f"unknown vocab {vocab!r}. Valid: {', '.join(VOCAB)}")
 
     if stream is None:
         stream = sys.stdout
@@ -143,7 +141,13 @@ def _repeated_reads(events, n: int):
                 counts[p] += 1
                 first_idx.setdefault(p, i)
     return [
-        {"event_idx": first_idx[p], "ts": events[first_idx[p]].get("ts"), "path": p, "count": c, "kind": "repeated-reads"}
+        {
+            "event_idx": first_idx[p],
+            "ts": events[first_idx[p]].get("ts"),
+            "path": p,
+            "count": c,
+            "kind": "repeated-reads",
+        }
         for p, c in counts.items()
         if c >= n
     ]
@@ -164,7 +168,9 @@ def _glob_burst(events, k: int):
         elif et == "pre_tool" and ev.get("tool_name") == "Read":
             target = (ev.get("paths") or [None])[0]
             if target and target in glob_paths:
-                streak.append({"event_idx": i, "ts": ev.get("ts"), "path": target, "kind": "glob-burst"})
+                streak.append(
+                    {"event_idx": i, "ts": ev.get("ts"), "path": target, "kind": "glob-burst"}
+                )
                 if len(streak) >= k:
                     out.extend(streak)
                     streak = []
@@ -186,7 +192,13 @@ def _routing_thrash(events, m: int):
                 counts[p] += 1
                 first_idx.setdefault(p, i)
     return [
-        {"event_idx": first_idx[p], "ts": events[first_idx[p]].get("ts"), "path": p, "count": c, "kind": "routing-thrash"}
+        {
+            "event_idx": first_idx[p],
+            "ts": events[first_idx[p]].get("ts"),
+            "path": p,
+            "count": c,
+            "kind": "routing-thrash",
+        }
         for p, c in counts.items()
         if c >= m
     ]
@@ -285,7 +297,10 @@ def _stale_cache(events):
     for i, ev in enumerate(events):
         if ev.get("event_type") != "post_tool" or ev.get("tool_name") != "Read":
             continue
-        sha = ev.get("response_sha256") or f"size:{ev.get('response_size_bytes') or ev.get('result_bytes') or 0}"
+        sha = (
+            ev.get("response_sha256")
+            or f"size:{ev.get('response_size_bytes') or ev.get('result_bytes') or 0}"
+        )
         for p in ev.get("paths") or []:
             if isinstance(p, str):
                 by_path.setdefault(p, []).append((i, sha, int(ev.get("ts") and 1 or 0)))
@@ -326,7 +341,9 @@ def _silent_failure(events):
             if events[j].get("event_type") != "agent_response":
                 continue
             text = (events[j].get("agent_response_text") or "").lower()
-            mentioned = any((p.lower() in text) or (os.path.basename(p).lower() in text) for p in target_paths)
+            mentioned = any(
+                (p.lower() in text) or (os.path.basename(p).lower() in text) for p in target_paths
+            )
             if not mentioned and "error" not in text and "fail" not in text:
                 out.append(
                     {
@@ -387,6 +404,4 @@ def _render(result, stream):
         for k in ("path", "token", "count", "size_bytes", "tool", "pattern"):
             if k in m and m[k] is not None:
                 extra.append(f"{k}={m[k]}")
-        stream.write(
-            f"  [{ts}] event {m.get('event_idx', '?')} " + " ".join(extra) + "\n"
-        )
+        stream.write(f"  [{ts}] event {m.get('event_idx', '?')} " + " ".join(extra) + "\n")

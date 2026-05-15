@@ -96,9 +96,7 @@ def test_post_tool_response_sha_and_size(plugin_data_dir):
 
 def test_metadata_v2_anomaly_counters_initialised(plugin_data_dir):
     append_event(_event())
-    meta = json.loads(
-        (plugin_data_dir / "sessions" / "Sv2" / "metadata.json").read_text()
-    )
+    meta = json.loads((plugin_data_dir / "sessions" / "Sv2" / "metadata.json").read_text())
     assert meta["v"] == METADATA_SCHEMA_VERSION == 2
     assert meta["anomaly_counters"] == {
         "unmentioned_reads": 0,
@@ -133,9 +131,7 @@ def test_metadata_accumulates_tokens(plugin_data_dir):
             tokens={"input": 7, "output": 3, "cache_read": 1, "cache_creation": 0},
         )
     )
-    meta = json.loads(
-        (plugin_data_dir / "sessions" / "Sv2" / "metadata.json").read_text()
-    )
+    meta = json.loads((plugin_data_dir / "sessions" / "Sv2" / "metadata.json").read_text())
     assert meta["tokens_total"] == {
         "input": 107,
         "output": 53,

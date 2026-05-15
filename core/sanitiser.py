@@ -130,9 +130,7 @@ def render_safe_markdown(events: list[dict], metadata: dict) -> str:
         elif et == "post_tool":
             sha = ev.get("response_sha256") or "-"
             size = ev.get("response_size_bytes") or ev.get("result_bytes") or 0
-            lines.append(
-                f"- [{ts}] **↳ {ev.get('tool_name')}** sha={sha[:12]} size={size}B"
-            )
+            lines.append(f"- [{ts}] **↳ {ev.get('tool_name')}** sha={sha[:12]} size={size}B")
         elif et == "agent_response":
             lines.append(f"- [{ts}] **agent**: {ev.get('agent_response_text', '')}")
         elif et == "session_end":

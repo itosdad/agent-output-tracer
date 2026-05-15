@@ -119,9 +119,7 @@ def note_list(
                 link_str += f" event={links['event_idx']}"
             if links.get("finding_idx") is not None:
                 link_str += f" finding={links['finding_idx']}"
-            stream.write(
-                f"  {n['id']} [{n['tag']}] {n['ts']} by={n['by']}{link_str}\n"
-            )
+            stream.write(f"  {n['id']} [{n['tag']}] {n['ts']} by={n['by']}{link_str}\n")
             stream.write(f"      {n['body']}\n")
     return notes
 

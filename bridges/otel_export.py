@@ -180,9 +180,7 @@ def export_spans(spans: Iterable[dict], *, exporter: str = "console") -> None:
     if exporter == "console":
         provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
     else:
-        raise ValueError(
-            f"exporter {exporter!r} is not implemented in D-6 (console only)."
-        )
+        raise ValueError(f"exporter {exporter!r} is not implemented in D-6 (console only).")
     trace.set_tracer_provider(provider)
     tracer = trace.get_tracer("aot")
     for span in spans:
@@ -191,6 +189,8 @@ def export_spans(spans: Iterable[dict], *, exporter: str = "console") -> None:
                 if v is None:
                     continue
                 try:
-                    otel_span.set_attribute(k, v if isinstance(v, (str, int, float, bool)) else str(v))
+                    otel_span.set_attribute(
+                        k, v if isinstance(v, (str, int, float, bool)) else str(v)
+                    )
                 except Exception:
                     pass

@@ -77,7 +77,9 @@ def test_sanitiser_strips_cwd_and_email():
             "raw_event": {},
         }
     ]
-    out_events, meta = sanitise_session(events, {"cwd": "/Users/x/work/myproj", "session_id": "abcdefghij"})
+    out_events, meta = sanitise_session(
+        events, {"cwd": "/Users/x/work/myproj", "session_id": "abcdefghij"}
+    )
     assert "<EMAIL>" in out_events[0]["user_prompt_text"]
     assert "<repo>" in out_events[0]["user_prompt_text"]
     assert out_events[0]["paths"] == ["<repo>/notes.md"]

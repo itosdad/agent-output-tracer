@@ -47,7 +47,10 @@ def _event(**over):
 
 def _seed_basic(data_dir, sid="D3"):
     """user prompt → Read foo.md → agent response."""
-    append_event(_event(session_id=sid, event_type="user_prompt", user_prompt_text="explore foo.md"), data_dir=data_dir)
+    append_event(
+        _event(session_id=sid, event_type="user_prompt", user_prompt_text="explore foo.md"),
+        data_dir=data_dir,
+    )
     append_event(
         _event(
             session_id=sid,
@@ -75,7 +78,9 @@ def _seed_basic(data_dir, sid="D3"):
 
 
 def test_trace_missing_finds_unmentioned_content(plugin_data_dir):
-    append_event(_event(event_type="user_prompt", user_prompt_text="explain X"), data_dir=plugin_data_dir)
+    append_event(
+        _event(event_type="user_prompt", user_prompt_text="explain X"), data_dir=plugin_data_dir
+    )
     append_event(
         _event(
             event_type="post_tool",
@@ -172,9 +177,7 @@ def test_trace_by_sha_finds_matching_event(plugin_data_dir):
 def test_trace_by_sha_no_match(plugin_data_dir):
     _seed_basic(plugin_data_dir)
     buf = io.StringIO()
-    result = trace_by_sha(
-        "D3", "0" * 64, data_dir=plugin_data_dir, stream=buf
-    )
+    result = trace_by_sha("D3", "0" * 64, data_dir=plugin_data_dir, stream=buf)
     assert result["matches"] == []
 
 
@@ -204,7 +207,10 @@ def test_find_rejects_unknown_vocab(plugin_data_dir):
 
 def test_find_unmentioned_reads(plugin_data_dir):
     """User said 'explore' (no path). Agent Reads /p/secret.md without grounding."""
-    append_event(_event(event_type="user_prompt", user_prompt_text="explore something"), data_dir=plugin_data_dir)
+    append_event(
+        _event(event_type="user_prompt", user_prompt_text="explore something"),
+        data_dir=plugin_data_dir,
+    )
     append_event(
         _event(
             event_type="post_tool",
@@ -371,9 +377,7 @@ def test_bisect_converges_and_records_finding(plugin_data_dir):
             break
     assert last and last.get("converged") is True
     # Finding recorded in metadata
-    meta = json.loads(
-        (plugin_data_dir / "sessions" / "bsess" / "metadata.json").read_text()
-    )
+    meta = json.loads((plugin_data_dir / "sessions" / "bsess" / "metadata.json").read_text())
     bisect_findings = [f for f in meta["findings"] if f["kind"] == "bisect_first_bad"]
     assert bisect_findings
 
@@ -409,9 +413,7 @@ def test_note_metadata_count_updated(plugin_data_dir):
     _seed_basic(plugin_data_dir, sid="nsess")
     note_add("nsess", "first", data_dir=plugin_data_dir, stream=io.StringIO())
     note_add("nsess", "second", data_dir=plugin_data_dir, stream=io.StringIO())
-    meta = json.loads(
-        (plugin_data_dir / "sessions" / "nsess" / "metadata.json").read_text()
-    )
+    meta = json.loads((plugin_data_dir / "sessions" / "nsess" / "metadata.json").read_text())
     assert meta["notes_count"] == 2
 
 

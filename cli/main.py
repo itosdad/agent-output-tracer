@@ -87,10 +87,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # list
     p_list = subparsers.add_parser("list", help="List captured sessions (newest first).")
-    p_list.add_argument("--last", type=int, default=None, help="Show only the N most recent sessions.")
     p_list.add_argument(
-        "--format", dest="fmt", choices=["text", "json"], default="text"
+        "--last", type=int, default=None, help="Show only the N most recent sessions."
     )
+    p_list.add_argument("--format", dest="fmt", choices=["text", "json"], default="text")
 
     # latest
     subparsers.add_parser("latest", help="Print the most-recent session id.")
@@ -100,24 +100,45 @@ def _build_parser() -> argparse.ArgumentParser:
     p_diff.add_argument("--session", required=True)
 
     # causal-graph
-    p_cg = subparsers.add_parser("causal-graph", help="Render the session as a mermaid causal graph.")
+    p_cg = subparsers.add_parser(
+        "causal-graph", help="Render the session as a mermaid causal graph."
+    )
     p_cg.add_argument("--session", required=True)
-    p_cg.add_argument("--output", default=None, help="Write to this file (markdown). Defaults to stdout.")
+    p_cg.add_argument(
+        "--output", default=None, help="Write to this file (markdown). Defaults to stdout."
+    )
 
     # gc
     p_gc = subparsers.add_parser(
         "gc", help="Apply retention policy (strip content >archive_days, delete >delete_days)."
     )
-    p_gc.add_argument("--archive-days", type=int, default=30, help="Strip content fields from sessions older than N days (default 30).")
-    p_gc.add_argument("--delete-days", type=int, default=365, help="Remove session dirs older than N days (default 365).")
-    p_gc.add_argument("--dry-run", action="store_true", help="Report what would happen without modifying anything.")
+    p_gc.add_argument(
+        "--archive-days",
+        type=int,
+        default=30,
+        help="Strip content fields from sessions older than N days (default 30).",
+    )
+    p_gc.add_argument(
+        "--delete-days",
+        type=int,
+        default=365,
+        help="Remove session dirs older than N days (default 365).",
+    )
+    p_gc.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report what would happen without modifying anything.",
+    )
 
     # export-trace
     p_export = subparsers.add_parser(
-        "export-trace", help="Bundle replay / diff / mentioned-but-not-read / causal-graph into one report."
+        "export-trace",
+        help="Bundle replay / diff / mentioned-but-not-read / causal-graph into one report.",
     )
     p_export.add_argument("--session", required=True)
-    p_export.add_argument("--output", default=None, help="Write the markdown report to this file. Defaults to stdout.")
+    p_export.add_argument(
+        "--output", default=None, help="Write the markdown report to this file. Defaults to stdout."
+    )
 
     # mentioned-but-not-read
     p_mbnr = subparsers.add_parser(
@@ -127,15 +148,21 @@ def _build_parser() -> argparse.ArgumentParser:
     p_mbnr.add_argument("--session", required=True)
 
     # why
-    p_why = subparsers.add_parser("why", help="Surface the context that may have caused a specific event.")
+    p_why = subparsers.add_parser(
+        "why", help="Surface the context that may have caused a specific event."
+    )
     p_why.add_argument("--session", required=True)
     p_why.add_argument("--path", help="Filter by a path the event touches")
     p_why.add_argument("--tool", help="Filter by tool_name (Read, Bash, …)")
     p_why.add_argument("--ts", help="Disambiguate by timestamp (HH:MM:SS substring match)")
-    p_why.add_argument("--event-index", type=int, help="Direct address by 0-based events.jsonl index")
+    p_why.add_argument(
+        "--event-index", type=int, help="Direct address by 0-based events.jsonl index"
+    )
 
     # trace
-    p_trace = subparsers.add_parser("trace", help="Reverse-lookup an output phrase to its causal trail.")
+    p_trace = subparsers.add_parser(
+        "trace", help="Reverse-lookup an output phrase to its causal trail."
+    )
     p_trace.add_argument("--session", required=True)
     trace_mode = p_trace.add_mutually_exclusive_group(required=True)
     trace_mode.add_argument(
@@ -159,7 +186,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     # state-at
-    p_state = subparsers.add_parser("state-at", help="Snapshot of session state at a chosen moment.")
+    p_state = subparsers.add_parser(
+        "state-at", help="Snapshot of session state at a chosen moment."
+    )
     p_state.add_argument("--session", required=True)
     p_state.add_argument(
         "--time",
@@ -171,10 +200,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p_grep = subparsers.add_parser("grep", help="Full-text regex search across a session.")
     p_grep.add_argument("--session", required=True, help="Session spec (see `replay --help`).")
     p_grep.add_argument("--pattern", required=True, help="Python regex pattern.")
-    p_grep.add_argument("-i", "--ignore-case", action="store_true", help="Match case-insensitively.")
+    p_grep.add_argument(
+        "-i", "--ignore-case", action="store_true", help="Match case-insensitively."
+    )
 
     # doctor (D-1)
-    p_doctor = subparsers.add_parser("doctor", help="Self-diagnostic check of runtime, data dir, hook wiring.")
+    p_doctor = subparsers.add_parser(
+        "doctor", help="Self-diagnostic check of runtime, data dir, hook wiring."
+    )
     p_doctor.add_argument("--format", dest="fmt", choices=["text", "json"], default="text")
 
     # config (D-1)
@@ -195,9 +228,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "find",
         help="Run anomaly vocabulary patterns (unmentioned-reads / repeated-reads / glob-burst / etc).",
     )
-    p_find.add_argument("vocab", help="Vocab term: unmentioned-reads / repeated-reads / glob-burst / routing-thrash / large-read / hallucinations / empty-glob / stale-cache / silent-failure / abandoned-write")
+    p_find.add_argument(
+        "vocab",
+        help="Vocab term: unmentioned-reads / repeated-reads / glob-burst / routing-thrash / large-read / hallucinations / empty-glob / stale-cache / silent-failure / abandoned-write",
+    )
     p_find.add_argument("--session", required=True)
-    p_find.add_argument("--threshold", type=int, default=None, help="Threshold override (vocab-specific).")
+    p_find.add_argument(
+        "--threshold", type=int, default=None, help="Threshold override (vocab-specific)."
+    )
 
     # bisect (D-3)
     p_bisect = subparsers.add_parser("bisect", help="Binary search across a session timeline.")
@@ -205,7 +243,9 @@ def _build_parser() -> argparse.ArgumentParser:
     bisect_sub.required = True
     p_bstart = bisect_sub.add_parser("start", help="Begin a bisect on a session.")
     p_bstart.add_argument("--session", required=True)
-    p_bstart.add_argument("--from", dest="lo", type=int, default=None, help="Lower bound (event idx)")
+    p_bstart.add_argument(
+        "--from", dest="lo", type=int, default=None, help="Lower bound (event idx)"
+    )
     p_bstart.add_argument("--to", dest="hi", type=int, default=None, help="Upper bound (event idx)")
     for verb in ("good", "bad", "skip", "view", "status", "log", "quit"):
         p = bisect_sub.add_parser(verb, help=f"bisect {verb}")
@@ -219,8 +259,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_n_add.add_argument("--session", required=True)
     p_n_add.add_argument("body", help="Note body.")
     p_n_add.add_argument("--tag", default="observation", help="Tag (default 'observation').")
-    p_n_add.add_argument("--event", dest="event_idx", type=int, default=None, help="Anchor to an event index.")
-    p_n_add.add_argument("--finding", dest="finding_idx", type=int, default=None, help="Anchor to a finding index.")
+    p_n_add.add_argument(
+        "--event", dest="event_idx", type=int, default=None, help="Anchor to an event index."
+    )
+    p_n_add.add_argument(
+        "--finding", dest="finding_idx", type=int, default=None, help="Anchor to a finding index."
+    )
     p_n_list = note_sub.add_parser("list", help="List notes on a session.")
     p_n_list.add_argument("--session", required=True)
     p_n_list.add_argument("--tag", default=None, help="Filter by tag.")
@@ -280,9 +324,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_review.add_argument("--since", default=None, help="ISO date lower bound on ts_end.")
     p_review.add_argument("--until", default=None, help="ISO date upper bound on ts_end.")
-    p_review.add_argument(
-        "--format", dest="fmt", choices=["text", "json"], default="text"
-    )
+    p_review.add_argument("--format", dest="fmt", choices=["text", "json"], default="text")
 
     # tail (D-4)
     p_tail = subparsers.add_parser(
@@ -388,7 +430,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 sys.stdout.write("\n--- following (Ctrl+C to stop) ---\n")
                 sys.stdout.flush()
                 try:
-                    tail(resolved, data_dir=args.data_dir, fmt=args.fmt if args.fmt == "json" else "text", stream=sys.stdout)
+                    tail(
+                        resolved,
+                        data_dir=args.data_dir,
+                        fmt=args.fmt if args.fmt == "json" else "text",
+                        stream=sys.stdout,
+                    )
                 except KeyboardInterrupt:
                     pass
             return 0

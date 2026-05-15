@@ -112,9 +112,7 @@ def _codex_payload(hook_event_name, **extra):
     "script,hook_name,expected_type,extra",
     CODEX_SCRIPTS,
 )
-def test_codex_event_routed_to_codex_adapter(
-    tmp_path, script, hook_name, expected_type, extra
-):
+def test_codex_event_routed_to_codex_adapter(tmp_path, script, hook_name, expected_type, extra):
     raw = _codex_payload(hook_name, **extra)
     res = _run_hook(
         script,
@@ -146,9 +144,7 @@ def test_codex_turn_id_preserved_through_runner(tmp_path):
     )
     assert res.returncode == 0
     parsed = json.loads(
-        (tmp_path / "sessions" / "cdx-itg" / "events.jsonl")
-        .read_text()
-        .splitlines()[-1]
+        (tmp_path / "sessions" / "cdx-itg" / "events.jsonl").read_text().splitlines()[-1]
     )
     assert parsed.get("turn_id") == "t-1"
 
@@ -170,9 +166,7 @@ def test_engine_detection_falls_back_to_claude_for_legacy_payload(tmp_path):
     )
     assert res.returncode == 0
     parsed = json.loads(
-        (tmp_path / "sessions" / "cc-itg" / "events.jsonl")
-        .read_text()
-        .splitlines()[-1]
+        (tmp_path / "sessions" / "cc-itg" / "events.jsonl").read_text().splitlines()[-1]
     )
     assert parsed["engine"] == "claude-code"
     assert parsed["event_type"] == "user_prompt"

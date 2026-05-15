@@ -218,9 +218,7 @@ def trace_missing(
         paths = ev.get("paths") or []
         if refs and not any(p in refs for p in paths):
             continue
-        appearances.append(
-            {"event_idx": i, "ts": ev.get("ts"), "paths": list(paths)}
-        )
+        appearances.append({"event_idx": i, "ts": ev.get("ts"), "paths": list(paths)})
         if first_appearance_idx == -1:
             first_appearance_idx = i
 
@@ -259,16 +257,13 @@ def _render_missing(result, stream):
             + ".\n"
         )
         return
-    stream.write(
-        f"{phrase!r} surfaced in {len(result['appearances'])} tool_response(s):\n"
-    )
+    stream.write(f"{phrase!r} surfaced in {len(result['appearances'])} tool_response(s):\n")
     for ap in result["appearances"]:
         ts = short_time(ap["ts"])
         stream.write(f"  - [{ts}] event {ap['event_idx']} paths={ap['paths']}\n")
     if result["downstream_agent_mention_idx"] is not None:
         stream.write(
-            f"\n✓ Agent later acknowledged it at event "
-            f"{result['downstream_agent_mention_idx']}.\n"
+            f"\n✓ Agent later acknowledged it at event {result['downstream_agent_mention_idx']}.\n"
         )
     else:
         stream.write(
@@ -321,9 +316,7 @@ def trace_by_sha(
     if not matches:
         stream.write(f"No post_tool events with SHA256 {sha}.\n")
     else:
-        stream.write(
-            f"Found {len(matches)} post_tool event(s) with SHA256 {sha}:\n"
-        )
+        stream.write(f"Found {len(matches)} post_tool event(s) with SHA256 {sha}:\n")
         for m in matches:
             stream.write(
                 f"  - event {m['event_idx']} [{short_time(m['ts'])}] "

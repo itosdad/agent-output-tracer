@@ -85,9 +85,7 @@ def build_or_refresh(
         for i, ev in enumerate(events):
             for p in ev.get("paths") or []:
                 if isinstance(p, str):
-                    path_cross.setdefault(p, []).append(
-                        {"session_id": sid, "event_idx": i}
-                    )
+                    path_cross.setdefault(p, []).append({"session_id": sid, "event_idx": i})
             if ev.get("event_type") == "post_tool":
                 sha = ev.get("response_sha256")
                 if not sha:

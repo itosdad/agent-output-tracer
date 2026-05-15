@@ -110,7 +110,8 @@ def _build_base(
             "input": tokens.get("input_tokens") or tokens.get("input"),
             "output": tokens.get("output_tokens") or tokens.get("output"),
             "cache_read": tokens.get("cache_read_input_tokens") or tokens.get("cache_read"),
-            "cache_creation": tokens.get("cache_creation_input_tokens") or tokens.get("cache_creation"),
+            "cache_creation": tokens.get("cache_creation_input_tokens")
+            or tokens.get("cache_creation"),
         }
     parent = raw.get("parent_session_id")
     if isinstance(parent, str) and parent:
