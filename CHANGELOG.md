@@ -71,3 +71,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   multi-match prefixes. New CLI subcommands `list` (text table or
   `--format json`, optional `--last N`) and `latest`. `replay
   --session` accepts every spec form. 149 total pass.
+- Phase A-8: `grep` command — regex search across every string-bearing
+  field of a session (user_prompt_text / agent_response_text /
+  tool_response / command / tool_name / stop_reason / cwd /
+  paths[i] / tool_input.\*). `-i` flag for case-insensitive. Returns
+  grep-conventional exit codes (0 = matches, 1 = none, 2 = error).
+  Session spec resolver applied to `--session`. 164 total pass.

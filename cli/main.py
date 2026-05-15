@@ -92,6 +92,28 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print the most-recent session id.",
     )
 
+    # grep
+    p_grep = subparsers.add_parser(
+        "grep",
+        help="Full-text regex search across a session.",
+    )
+    p_grep.add_argument(
+        "--session",
+        required=True,
+        help="Session spec (see `replay --help`).",
+    )
+    p_grep.add_argument(
+        "--pattern",
+        required=True,
+        help="Python regex pattern.",
+    )
+    p_grep.add_argument(
+        "-i",
+        "--ignore-case",
+        action="store_true",
+        help="Match case-insensitively.",
+    )
+
     return parser
 
 
@@ -143,6 +165,34 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: {exc}", file=sys.stderr)
             return 2
         return 0
+
+    if args.cmd == "grep":
+        import re as _re
+
+        from core.session_io import SessionNotFoundError
+        from core.session_resolver import (
+            AmbiguousSessionSpec,
+            SessionSpecNotFound,
+            resolve_session_id,
+        )
+        from query.grep import grep
+
+        try:
+            resolved = resolve_session_id(args.session, data_dir=args.data_dir)
+            n = grep(
+                resolved,
+                args.pattern,
+                data_dir=args.data_dir,
+                ignore_case=args.ignore_case,
+                stream=sys.stdout,
+            )
+        except (SessionNotFoundError, SessionSpecNotFound, AmbiguousSessionSpec) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        except _re.error as exc:
+            print(f"error: invalid regex: {exc}", file=sys.stderr)
+            return 2
+        return 0 if n > 0 else 1  # grep convention: 1 means no match
 
     parser.error(f"unknown command: {args.cmd}")
     return 2
