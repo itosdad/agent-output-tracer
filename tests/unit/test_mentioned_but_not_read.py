@@ -234,6 +234,33 @@ def test_writes_human_readable(plugin_data_dir):
     assert "hallucination" in out.lower() or "candidate" in out.lower()
 
 
+def test_trailing_slash_token_grounded_by_user_mention(plugin_data_dir):
+    """Regression: agent says `~/proj/hooks/` (trailing slash), user
+    said `~/proj/hooks` (no slash) — grounding must succeed despite
+    os.path.basename returning empty for trailing-slash paths."""
+    append_event(
+        _event(
+            event_type="user_prompt",
+            ts="2026-01-01T00:00:00.000+00:00",
+            user_prompt_text="explore ~/proj/hooks for python files",
+        ),
+        data_dir=plugin_data_dir,
+    )
+    append_event(
+        _event(
+            event_type="agent_response",
+            ts="2026-01-01T00:00:01.000+00:00",
+            agent_response_text="Found 6 files under ~/proj/hooks/",
+        ),
+        data_dir=plugin_data_dir,
+    )
+    buf = io.StringIO()
+    result = mentioned_but_not_read("M1", data_dir=plugin_data_dir, stream=buf)
+    tokens = [c["token"] for c in result["candidates"]]
+    assert "~/proj/hooks/" not in tokens
+    assert "~/proj/hooks" not in tokens
+
+
 def test_basename_in_user_prompt_grounds_token(plugin_data_dir):
     """User said 'foo.md', agent said '/proj/foo.md' — grounded by basename."""
     append_event(

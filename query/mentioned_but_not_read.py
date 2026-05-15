@@ -67,11 +67,12 @@ def mentioned_but_not_read(
 
 
 def _is_grounded(token, user_text, tool_response_text):
-    """A token is grounded if its full string or basename appears in
-    user prompts or tool responses."""
-    base = os.path.basename(token) or token
+    """A token is grounded if its full string, its trailing-slash-stripped
+    form, or its basename appears in user prompts or tool responses."""
+    stripped = token.rstrip("/")
+    base = os.path.basename(stripped) or stripped
     for haystack in (user_text, tool_response_text):
-        if token in haystack:
+        if token in haystack or stripped in haystack:
             return True
         if base and base in haystack:
             return True
