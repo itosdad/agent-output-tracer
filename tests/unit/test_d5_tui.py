@@ -380,6 +380,75 @@ async def test_enter_on_event_row_drills_into_event_detail(plugin_data_dir):
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
+async def test_find_hallucinations_with_multiple_tokens_per_event(plugin_data_dir):
+    """Regression for v0.9.6: a single agent_response can be the source
+    of many hallucinations (one per extracted token). The find-results
+    OptionList was keying options by event_idx and crashed with
+    `DuplicateID` the moment the second token was added.
+    """
+    from core.recorder import append_event
+    from tui.app import AOTApp
+    from tui.screens.find_results import FindResultsScreen
+
+    base = {
+        "v": 1,
+        "engine": "claude-code",
+        "session_id": "dup-001",
+        "cwd": "/p",
+        "tool_name": None,
+        "tool_input": None,
+        "tool_response": None,
+        "agent_response_text": None,
+        "user_prompt_text": None,
+        "stop_reason": None,
+        "paths": [],
+        "command": None,
+        "result_bytes": 0,
+        "raw_event": {},
+    }
+    append_event(
+        {
+            **base,
+            "event_type": "user_prompt",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "user_prompt_text": "go",
+        },
+        data_dir=plugin_data_dir,
+    )
+    # Single agent response, three ungrounded tokens → three hits on
+    # the same event_idx.
+    append_event(
+        {
+            **base,
+            "event_type": "agent_response",
+            "ts": "2026-05-15T10:00:01.000+00:00",
+            "agent_response_text": (
+                "I'll check /a/b.md plus https://x.example/foo and Terminal.app"
+            ),
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # Drill through Home → Find → hallucinations via the palette
+        # (shortest path to FindResultsScreen).
+        from textual.widgets import Input, OptionList
+
+        await pilot.press("colon")
+        await pilot.pause()
+        app.screen.query_one(Input).value = "find hallucinations"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert isinstance(app.screen, FindResultsScreen)
+        ol = app.screen.query_one(OptionList)
+        # 3 matches must coexist without DuplicateID.
+        assert ol.option_count >= 2
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
 async def test_palette_routes_to_doctor(plugin_data_dir):
     """`:doctor` ⏎ should dismiss the palette and push DoctorScreen."""
     from textual.widgets import Input

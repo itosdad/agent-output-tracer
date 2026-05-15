@@ -96,10 +96,15 @@ class SearchResultsScreen(AOTScreen):
         self._open_by_id(opt.id or "")
 
     def _open_by_id(self, opt_id: str) -> None:
+        if not opt_id or not opt_id.startswith("match-"):
+            return
         try:
-            event_idx = int(opt_id)
+            match_idx = int(opt_id.split("-", 1)[1])
         except (TypeError, ValueError):
             return
+        if match_idx < 0 or match_idx >= len(self._matches):
+            return
+        event_idx, _m = self._matches[match_idx]
         if event_idx < 0 or event_idx >= len(self._events):
             return
         from tui.screens.event_detail import EventDetailScreen
@@ -150,8 +155,13 @@ class SearchResultsScreen(AOTScreen):
             ol.add_option(Option(Text("(no matches)", style="dim")))
             return
 
-        for event_idx, m in self._matches:
-            ol.add_option(Option(_render_match(event_idx, m), id=str(event_idx)))
+        # Same caveat as FindResults: many matches can share one
+        # event_idx (the same event has the pattern in several fields).
+        for i, (event_idx, m) in enumerate(self._matches):
+            try:
+                ol.add_option(Option(_render_match(event_idx, m), id=f"match-{i}"))
+            except Exception:
+                continue
         ol.highlighted = 0
 
 

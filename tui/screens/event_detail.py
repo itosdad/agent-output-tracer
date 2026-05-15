@@ -140,9 +140,21 @@ class EventDetailScreen(AOTScreen):
                 event_idx=self._idx,
                 data_dir=self._data_dir,
             )
-            self.app.bell()
-        except Exception:
-            self.app.bell()
+        except Exception as exc:
+            self.app.notify(
+                f"note save failed: {exc}",
+                severity="error",
+                title="aot",
+            )
+            return
+        # Toast confirmation — silent disk writes leave the user
+        # wondering whether anything happened.
+        self.app.notify(
+            f"note saved on event {self._idx}",
+            severity="information",
+            title="aot",
+            timeout=2,
+        )
 
     def action_next_event(self) -> None:
         if self._idx + 1 >= len(self._all_events):

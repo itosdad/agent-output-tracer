@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.8] — 2026-05-15 — Phase 2 bug-fix sweep
+
+### Fixed
+
+- **Find / Search results crashed with `DuplicateID`** when a single
+  event produced multiple matches (one agent_response can be the
+  source of several hallucinations tokens; one event can have the
+  search pattern in multiple fields). The OptionList option ids were
+  the bare `event_idx`, which collided. Switched to `match-<i>` ids
+  and resolved them back to event_idx through the in-memory match list.
+- **`?` help binding** is now also reachable via `F1`. Some terminal
+  / IME combinations swallow the literal `?` before Textual sees it.
+- **Note / Export silent success.** Pressing Enter on the Note modal
+  used to dismiss with only a `bell()` — no feedback. Replaced with
+  `app.notify()` toasts (`note saved on event N`, `exported → <path>`)
+  including an error path that surfaces exceptions instead of
+  swallowing them.
+
 ## [0.9.7] — 2026-05-15 — Phase 2.H: Live follow (closes Phase 2)
 
 ### Added
@@ -651,6 +669,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.9.8]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.8
 [0.9.7]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.7
 [0.9.6]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.6
 [0.9.5]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.9.5

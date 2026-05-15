@@ -146,9 +146,11 @@ def _run_export(app, session_id: str, values: dict | None, data_dir) -> None:
                 data_dir=data_dir,
                 output_path=Path(output) if output else None,
             )
-        app.bell()
-    except Exception:
-        app.bell()
+    except Exception as exc:
+        app.notify(f"export failed: {exc}", severity="error", title="aot")
+        return
+    label = output or "(stdout)"
+    app.notify(f"exported → {label}", severity="information", title="aot", timeout=3)
 
 
 def _render_session(meta: dict, *, is_latest: bool) -> Text:

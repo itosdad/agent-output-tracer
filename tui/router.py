@@ -42,13 +42,16 @@ class AOTScreen(Screen):
     BINDINGS = [
         Binding("escape", "safe_back", "back", show=False),
         Binding("q", "app.quit", "quit", show=False),
-        Binding("question_mark", "noop_help", "help", show=False),
         Binding("colon", "noop_palette", "palette", show=False),
         Binding("t", "noop_theme", "theme", show=False),
         # vim-style + Home/End jump to top / bottom of the focused
         # list or scrollable container. Universal across every screen.
         Binding("g,home", "jump_top", "top", show=False),
         Binding("G,end", "jump_bottom", "bottom", show=False),
+        # `?` opens help. We also accept `f1` because some terminal
+        # setups (notably JIS keyboards via certain IMEs) intercept
+        # the literal `?` character before Textual sees it.
+        Binding("question_mark,f1", "noop_help", "help", show=False),
     ]
 
     TITLE: str = "screen"

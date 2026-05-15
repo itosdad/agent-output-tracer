@@ -92,9 +92,16 @@ class FindResultsScreen(AOTScreen):
         self._open_by_id(opt.id or "")
 
     def _open_by_id(self, opt_id: str) -> None:
+        if not opt_id or not opt_id.startswith("match-"):
+            return
         try:
-            event_idx = int(opt_id)
+            match_idx = int(opt_id.split("-", 1)[1])
         except (TypeError, ValueError):
+            return
+        if match_idx < 0 or match_idx >= len(self._matches):
+            return
+        event_idx = self._matches[match_idx].get("event_idx")
+        if not isinstance(event_idx, int):
             return
         if event_idx < 0 or event_idx >= len(self._events):
             return
@@ -146,10 +153,15 @@ class FindResultsScreen(AOTScreen):
                 Option(Text(f"(no matches for '{self.vocab}' in this session)", style="dim"))
             )
             return
-        for m in self._matches:
-            event_idx = m.get("event_idx")
-            event_idx = int(event_idx) if isinstance(event_idx, int) else -1
-            ol.add_option(Option(_render_match(m), id=str(event_idx)))
+        # OptionList enforces unique ids. Several hallucinations matches
+        # can share the same `event_idx` (one agent_response, many tokens
+        # extracted), so we identify rows by `match-<index>` and store
+        # the underlying event_idx separately for drill-in.
+        for i, m in enumerate(self._matches):
+            try:
+                ol.add_option(Option(_render_match(m), id=f"match-{i}"))
+            except Exception:
+                continue
         ol.highlighted = 0
 
     def _show_error(self, msg: str) -> None:
