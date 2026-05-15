@@ -41,6 +41,7 @@ import sys
 from collections import Counter
 from typing import IO
 
+from core.references import extract_path_tokens, is_grounded, strip_tracer_output
 from core.session_io import load_events
 from core.time_utils import short_time
 
@@ -104,27 +105,38 @@ def find(
 
 
 def _unmentioned_reads(events):
-    """Path was Read but the user never named it and no Glob/Grep
-    surfaced it. Mirrors query.diff but at event granularity."""
-    user_text = " ".join(
-        ev.get("user_prompt_text") or "" for ev in events if ev.get("event_type") == "user_prompt"
-    )
-    glob_text = " ".join(
-        ev.get("tool_response") or ""
-        for ev in events
-        if ev.get("event_type") == "post_tool" and ev.get("tool_name") in ("Glob", "Grep")
-    )
+    """Path was Read but no prior user_prompt named it and no prior
+    Glob/Grep surfaced it.
+
+    Time-causality matters here: a user prompt that comes AFTER the
+    Read cannot retroactively "ground" the Read, so we walk the events
+    chronologically and only consult the corpus that existed at the
+    moment the Read fired.
+    """
     out = []
+    user_parts: list[str] = []
+    glob_parts: list[str] = []
     for i, ev in enumerate(events):
-        if ev.get("event_type") != "post_tool" or ev.get("tool_name") != "Read":
+        et = ev.get("event_type")
+        if et == "user_prompt":
+            user_parts.append(strip_tracer_output(ev.get("user_prompt_text") or ""))
             continue
+        if et != "post_tool":
+            continue
+        tool = ev.get("tool_name")
+        if tool in ("Glob", "Grep"):
+            resp = ev.get("tool_response")
+            if isinstance(resp, str):
+                glob_parts.append(resp)
+            continue
+        if tool != "Read":
+            continue
+        user_text = " ".join(user_parts)
+        glob_text = " ".join(glob_parts)
         for p in ev.get("paths") or []:
             if not isinstance(p, str):
                 continue
-            base = os.path.basename(p) or p
-            if p in user_text or base in user_text:
-                continue
-            if p in glob_text or base in glob_text:
+            if is_grounded(p, user_text, glob_text):
                 continue
             out.append({"event_idx": i, "ts": ev.get("ts"), "path": p, "kind": "unmentioned-reads"})
     return out
@@ -226,27 +238,42 @@ def _large_read(events, kb: int):
 
 def _hallucinations(events):
     """Agent_response events where the path tokens it mentions aren't
-    grounded in any prior user_prompt or tool_response. Lighter-weight
-    re-execution of mentioned-but-not-read at event granularity."""
-    from core.references import extract_path_tokens
+    grounded in any **prior** user_prompt or tool_response.
 
-    user_text = " ".join(
-        ev.get("user_prompt_text") or "" for ev in events if ev.get("event_type") == "user_prompt"
-    )
-    tool_text = " ".join(
-        ev.get("tool_response") or "" for ev in events if ev.get("event_type") == "post_tool"
-    )
+    Two correctness rules the older bag-of-events version got wrong:
+
+    1. **Time-causality.** A user prompt or tool response that appears
+       AFTER the agent_response cannot retroactively ground a claim
+       the agent already made. We accumulate the corpus chronologically
+       and freeze it at each agent_response event.
+
+    2. **Self-paste resilience.** When the operator pastes a prior
+       `aot find` output into the next user prompt, every flagged token
+       would otherwise appear in user_text and silently disqualify
+       itself. `strip_tracer_output` excises those pasted blocks before
+       the corpus is consulted, so the detector stays consistent across
+       repeated runs.
+    """
     out = []
+    user_parts: list[str] = []
+    tool_parts: list[str] = []
     for i, ev in enumerate(events):
-        if ev.get("event_type") != "agent_response":
+        et = ev.get("event_type")
+        if et == "user_prompt":
+            user_parts.append(strip_tracer_output(ev.get("user_prompt_text") or ""))
             continue
+        if et == "post_tool":
+            resp = ev.get("tool_response")
+            if isinstance(resp, str):
+                tool_parts.append(resp)
+            continue
+        if et != "agent_response":
+            continue
+        user_text = " ".join(user_parts)
+        tool_text = " ".join(tool_parts)
         text = ev.get("agent_response_text") or ""
         for tok in extract_path_tokens(text):
-            stripped = tok.rstrip("/")
-            base = os.path.basename(stripped) or stripped
-            if tok in user_text or stripped in user_text or (base and base in user_text):
-                continue
-            if tok in tool_text or stripped in tool_text or (base and base in tool_text):
+            if is_grounded(tok, user_text, tool_text):
                 continue
             out.append(
                 {

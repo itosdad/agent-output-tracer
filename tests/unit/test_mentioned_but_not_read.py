@@ -294,6 +294,74 @@ def test_unknown_session(plugin_data_dir):
         mentioned_but_not_read("nope", data_dir=plugin_data_dir, stream=io.StringIO())
 
 
+def test_time_causality_post_response_user_prompt_does_not_ground(plugin_data_dir):
+    """B1 regression: a user_prompt that appears *after* the agent
+    response cannot retroactively ground a path token. The agent
+    "hallucinated" /proj/ghost.md before the user ever named it."""
+    append_event(
+        _event(
+            event_type="agent_response",
+            ts="2026-01-01T00:00:01.000+00:00",
+            agent_response_text="I'll start by reading /proj/ghost.md",
+        ),
+        data_dir=plugin_data_dir,
+    )
+    append_event(
+        _event(
+            event_type="user_prompt",
+            ts="2026-01-01T00:00:02.000+00:00",
+            user_prompt_text="oh you mean /proj/ghost.md — that doesn't exist",
+        ),
+        data_dir=plugin_data_dir,
+    )
+    buf = io.StringIO()
+    result = mentioned_but_not_read("M1", data_dir=plugin_data_dir, stream=buf)
+    tokens = [c["token"] for c in result["candidates"]]
+    assert "/proj/ghost.md" in tokens
+
+
+def test_self_paste_does_not_silence_detector(plugin_data_dir):
+    """B2 regression: the operator pastes a prior `aot find` output into
+    the next user_prompt. That paste must not retroactively ground the
+    very tokens it documents."""
+    # Run 1: agent says /proj/ghost.md, no prior grounding.
+    append_event(
+        _event(
+            event_type="agent_response",
+            ts="2026-01-01T00:00:01.000+00:00",
+            agent_response_text="I'll read /proj/ghost.md",
+        ),
+        data_dir=plugin_data_dir,
+    )
+    # Operator pastes the tracer's prior output verbatim into a follow-up.
+    pasted = (
+        "find 'hallucinations': 1 match(es)\n"
+        "  [00:00:01] event 0 token=/proj/ghost.md\n"
+        "what does this mean?"
+    )
+    append_event(
+        _event(
+            event_type="user_prompt",
+            ts="2026-01-01T00:00:02.000+00:00",
+            user_prompt_text=pasted,
+        ),
+        data_dir=plugin_data_dir,
+    )
+    # Run 2 must still surface /proj/ghost.md.
+    append_event(
+        _event(
+            event_type="agent_response",
+            ts="2026-01-01T00:00:03.000+00:00",
+            agent_response_text="Looking at /proj/ghost.md now",
+        ),
+        data_dir=plugin_data_dir,
+    )
+    buf = io.StringIO()
+    result = mentioned_but_not_read("M1", data_dir=plugin_data_dir, stream=buf)
+    tokens = [c["token"] for c in result["candidates"]]
+    assert "/proj/ghost.md" in tokens
+
+
 def test_returns_list_sorted_by_first_seen_ts(plugin_data_dir):
     """Candidates should come back ordered by when the agent first
     mentioned each one (earliest first), so the user sees them in the

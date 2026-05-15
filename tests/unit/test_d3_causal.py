@@ -226,6 +226,103 @@ def test_find_unmentioned_reads(plugin_data_dir):
     assert any(m["path"] == "/p/secret.md" for m in result["matches"])
 
 
+def test_find_hallucinations_time_causality(plugin_data_dir):
+    """B1 regression: a user_prompt that arrives AFTER the agent_response
+    cannot retroactively ground a path token the agent already named."""
+    append_event(
+        _event(
+            event_type="agent_response",
+            ts="2026-05-15T10:00:00.000+00:00",
+            agent_response_text="I'll look at /proj/ghost.md",
+        ),
+        data_dir=plugin_data_dir,
+    )
+    append_event(
+        _event(
+            event_type="user_prompt",
+            ts="2026-05-15T10:00:01.000+00:00",
+            user_prompt_text="ok then /proj/ghost.md it is",
+        ),
+        data_dir=plugin_data_dir,
+    )
+    buf = io.StringIO()
+    result = find("D3", "hallucinations", data_dir=plugin_data_dir, stream=buf)
+    tokens = [m["token"] for m in result["matches"]]
+    assert "/proj/ghost.md" in tokens
+
+
+def test_find_hallucinations_self_paste_resilience(plugin_data_dir):
+    """B2 regression: pasting a prior `aot find` output back into a
+    follow-up user_prompt must not silence the detector on the next run."""
+    append_event(
+        _event(
+            event_type="agent_response",
+            ts="2026-05-15T10:00:00.000+00:00",
+            agent_response_text="I'll check /proj/ghost.md",
+        ),
+        data_dir=plugin_data_dir,
+    )
+    append_event(
+        _event(
+            event_type="user_prompt",
+            ts="2026-05-15T10:00:01.000+00:00",
+            user_prompt_text=(
+                "find 'hallucinations': 1 match(es)\n"
+                "  [10:00:00] event 0 token=/proj/ghost.md\n"
+                "explain please"
+            ),
+        ),
+        data_dir=plugin_data_dir,
+    )
+    append_event(
+        _event(
+            event_type="agent_response",
+            ts="2026-05-15T10:00:02.000+00:00",
+            agent_response_text="re-reading /proj/ghost.md to recheck",
+        ),
+        data_dir=plugin_data_dir,
+    )
+    buf = io.StringIO()
+    result = find("D3", "hallucinations", data_dir=plugin_data_dir, stream=buf)
+    tokens = [m["token"] for m in result["matches"]]
+    assert "/proj/ghost.md" in tokens
+
+
+def test_find_unmentioned_reads_time_causality(plugin_data_dir):
+    """B1 regression: a user_prompt that arrives AFTER the Read cannot
+    retroactively ground it. A Read that happened first while the user
+    had only said 'explore' must remain flagged."""
+    append_event(
+        _event(
+            event_type="user_prompt",
+            ts="2026-05-15T10:00:00.000+00:00",
+            user_prompt_text="explore",
+        ),
+        data_dir=plugin_data_dir,
+    )
+    append_event(
+        _event(
+            event_type="post_tool",
+            tool_name="Read",
+            paths=["/p/secret.md"],
+            tool_response="x",
+            ts="2026-05-15T10:00:01.000+00:00",
+        ),
+        data_dir=plugin_data_dir,
+    )
+    append_event(
+        _event(
+            event_type="user_prompt",
+            ts="2026-05-15T10:00:02.000+00:00",
+            user_prompt_text="ah you read /p/secret.md, good",
+        ),
+        data_dir=plugin_data_dir,
+    )
+    buf = io.StringIO()
+    result = find("D3", "unmentioned-reads", data_dir=plugin_data_dir, stream=buf)
+    assert any(m["path"] == "/p/secret.md" for m in result["matches"])
+
+
 def test_find_repeated_reads(plugin_data_dir):
     for i in range(3):
         append_event(
