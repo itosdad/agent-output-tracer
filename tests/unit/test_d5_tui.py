@@ -272,6 +272,90 @@ async def test_navigation_home_to_sessions_to_back(plugin_data_dir):
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
+async def test_enter_on_session_row_drills_into_timeline(plugin_data_dir):
+    """Regression: DataTable consumes Enter via its own `select_cursor`
+    action, which emits RowSelected. The screen has to listen for that
+    message — relying on the screen-level "enter" binding alone leaves
+    drill-in dead. (Phase 1 v0.7.0 originally shipped with this bug.)"""
+    from core.recorder import append_event
+    from tui.app import AOTApp
+
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",
+            "event_type": "user_prompt",
+            "session_id": "drill-001",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # Home → press Enter (select "Sessions" menu item)
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "SessionsScreen"
+        # Sessions → press Enter on the highlighted row → Timeline
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "TimelineScreen"
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_enter_on_event_row_drills_into_event_detail(plugin_data_dir):
+    """Regression: same DataTable-eats-Enter issue on the Timeline screen.
+    Pressing Enter on an event row must reach the Event Detail screen."""
+    from core.recorder import append_event
+    from tui.app import AOTApp
+
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",
+            "event_type": "user_prompt",
+            "session_id": "drill-002",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp("drill-002", data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "TimelineScreen"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "EventDetailScreen"
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
 async def test_navigation_deep_link_session(plugin_data_dir):
     """`aot tui --session <id>` puts Home → Sessions → Timeline on the
     stack, so Esc/Esc/Esc walks the user back to Home cleanly."""

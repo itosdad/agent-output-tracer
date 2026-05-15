@@ -20,7 +20,6 @@ from typing import Any
 
 from rich.text import Text
 from textual.binding import Binding
-from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from tui.router import AOTScreen
@@ -37,6 +36,8 @@ class EventDetailScreen(AOTScreen):
         Binding("k,up", "prev_event", "prev", show=False),
     ]
 
+    TITLE = "event"
+
     def __init__(
         self,
         *,
@@ -46,10 +47,6 @@ class EventDetailScreen(AOTScreen):
         all_events: list[dict],
         data_dir=None,
     ) -> None:
-        # Set instance state before super().__init__() — Textual's
-        # Screen base reads self.TITLE during its own __init__, so any
-        # @property that derives from instance state must already be
-        # answerable.
         self._event = event
         self._idx = event_index
         self._session_id = session_id
@@ -58,11 +55,6 @@ class EventDetailScreen(AOTScreen):
         self._show_raw: bool = False
         self._show_sanitised: bool = False
         super().__init__()
-
-    @property
-    def TITLE(self) -> str:  # type: ignore[override]
-        et = self._event.get("event_type") or "?"
-        return f"event {self._idx} · {et}"
 
     def breadcrumb_segments(self) -> list[str]:
         return [
@@ -84,26 +76,24 @@ class EventDetailScreen(AOTScreen):
         ]
 
     def compose_body(self):
-        yield VerticalScroll(
-            Static("", id="event-detail"),
-            classes="detail-pane",
-        )
+        yield Static("(loading)", id="event-detail", expand=True)
 
     def on_mount(self) -> None:
-        self._render()
-        self.query_one(VerticalScroll).focus()
+        self._refresh_view()
+        # Static can't take focus; defer key handling to the screen
+        # itself (which is fine — j/k/r/s/y are screen-level bindings).
 
     def action_toggle_raw(self) -> None:
         self._show_raw = not self._show_raw
         if self._show_raw:
             self._show_sanitised = False
-        self._render()
+        self._refresh_view()
 
     def action_toggle_sanitised(self) -> None:
         self._show_sanitised = not self._show_sanitised
         if self._show_sanitised:
             self._show_raw = False
-        self._render()
+        self._refresh_view()
 
     def action_yank(self) -> None:
         # Phase 1: best-effort clipboard via pyperclip if available.
@@ -126,7 +116,7 @@ class EventDetailScreen(AOTScreen):
         self._show_raw = False
         self._show_sanitised = False
         self._refresh_chrome()
-        self._render()
+        self._refresh_view()
 
     def action_prev_event(self) -> None:
         if self._idx <= 0:
@@ -136,7 +126,7 @@ class EventDetailScreen(AOTScreen):
         self._show_raw = False
         self._show_sanitised = False
         self._refresh_chrome()
-        self._render()
+        self._refresh_view()
 
     def action_drill_related(self) -> None:
         # Phase 1: jump to the first related event (same correlation_id),
@@ -154,7 +144,7 @@ class EventDetailScreen(AOTScreen):
                 self._show_raw = False
                 self._show_sanitised = False
                 self._refresh_chrome()
-                self._render()
+                self._refresh_view()
                 return
         self.app.bell()
 
@@ -168,9 +158,11 @@ class EventDetailScreen(AOTScreen):
         except Exception:
             pass
 
-    # ---- render ----
+    # ---- view refresh (NOT _render — that's a Textual Widget hook
+    # that returns a visual; overriding it returns None and crashes
+    # the compositor with 'NoneType has no render_strips') ----
 
-    def _render(self) -> None:
+    def _refresh_view(self) -> None:
         text = Text()
         if self._show_raw:
             text.append("─ raw event JSON ─\n", style="bold")

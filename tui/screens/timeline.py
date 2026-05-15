@@ -77,11 +77,20 @@ class TimelineScreen(AOTScreen):
         self._reload()
 
     def action_open(self) -> None:
+        # See SessionsScreen — DataTable swallows Enter via its own
+        # action and emits RowSelected. We mirror the same pattern.
+        self._open_cursor_row()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Primary drill-in path: DataTable's own Enter → RowSelected."""
+        self._open_cursor_row()
+
+    def _open_cursor_row(self) -> None:
         table = self.query_one(DataTable)
         if table.row_count == 0:
             return
         idx = table.cursor_row
-        if idx >= len(self._events):
+        if idx < 0 or idx >= len(self._events):
             return
         event = self._events[idx]
         from tui.screens.event_detail import EventDetailScreen

@@ -59,12 +59,24 @@ class SessionsScreen(AOTScreen):
         self._reload()
 
     def action_open(self) -> None:
+        # DataTable.cursor_type='row' consumes Enter via its own
+        # `select_cursor` action which emits RowSelected, so this
+        # screen-level binding rarely fires. We keep it as a fallback
+        # for keyboards / focus paths where Enter does bubble up.
+        self._open_cursor_row()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Primary drill-in path: DataTable's own Enter → RowSelected."""
+        self._open_cursor_row()
+
+    def _open_cursor_row(self) -> None:
         table = self.query_one(DataTable)
         if table.row_count == 0:
             return
-        sid = table.get_row_at(table.cursor_row)[1]
-        # Strip any cursor marker / styling — col 1 holds the full id.
-        sid_str = str(sid)
+        row = table.cursor_row
+        if row < 0 or row >= table.row_count:
+            return
+        sid_str = str(table.get_row_at(row)[1])
         from tui.screens.timeline import TimelineScreen
 
         self.app.push_screen(TimelineScreen(sid_str, data_dir=self._data_dir))

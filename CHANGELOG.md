@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-05-15
+
+Two Phase 1 TUI bugs that shipped in v0.7.0:
+
+### Fixed
+
+- **Enter on a DataTable row didn't drill in.** Both `SessionsScreen`
+  and `TimelineScreen` relied on a screen-level `Binding("enter", …)`,
+  but Textual's `DataTable` with `cursor_type="row"` consumes Enter
+  via its own `select_cursor` action which emits a `RowSelected`
+  message. The screen's binding never fired, so users were stuck on
+  Sessions and Timeline with no way to drill in to a session or event.
+  Fixed by listening for `DataTable.RowSelected` instead. Two
+  regression tests pin the contract.
+- **EventDetailScreen crashed the compositor.** `_render` is a
+  Textual `Widget` internal method (`widget.py:1900` calls
+  `visual = self._render()`). The screen accidentally overrode it
+  with a `None`-returning method, so as soon as the screen took the
+  viewport the renderer raised `'NoneType' object has no attribute
+  'render_strips'`. Renamed our method to `_refresh_view` and noted
+  the trap in the source.
+
 ## [0.7.0] — 2026-05-15
 
 TUI redesign Phase 1 and the hallucination detector overhaul. 461
@@ -421,6 +443,7 @@ pass on Python 3.13; hook runtime verified under macOS system Python 3.9.
   1000 events finalize in under 5s. README updated to v0.1.0 with real
   CLI output. 182 total pass.
 
+[0.7.1]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.7.1
 [0.7.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.7.0
 [0.6.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.6.0
 [0.5.0]: https://github.com/itosdad/agent-output-tracer/releases/tag/v0.5.0
