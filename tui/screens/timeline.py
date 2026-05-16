@@ -73,7 +73,7 @@ class TimelineScreen(AOTScreen):
         super().__init__()
 
     def breadcrumb_segments(self) -> list[str]:
-        return ["aot", self.session_id[:8], "timeline"]
+        return ["agent-output-tracer", self.session_id[:8], "timeline"]
 
     def footer_hints(self) -> list[tuple[str, str]]:
         return [

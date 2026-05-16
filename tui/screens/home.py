@@ -1,10 +1,15 @@
-"""Home screen — function picker.
+"""Home screen — banner + function picker + preview pane.
 
-Lists the top-level tracer functions and renders a preview pane below
-the list explaining what the highlighted function does, what data it
-shows, and an example finding. The preview pane is the v0.15.0 fix
-for "the menu items are opaque — I don't know what I'm picking" —
-operators no longer have to drill in just to find out what's inside.
+Top: an OhMyZsh-style ASCII banner (slant figlet "AOT" + tagline +
+version + quick-key hints) renders the project's formal name —
+"agent-output-tracer" — so the operator never has to wonder what
+they're looking at.
+
+Middle: the function picker.
+
+Bottom: a preview pane explaining what the highlighted function does,
+what data it'll show, and one example finding. Both banner and
+preview live on Home only; deeper screens own their own chrome.
 """
 
 from __future__ import annotations
@@ -15,6 +20,7 @@ from textual.containers import Vertical
 from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
+from tui._banner import render_banner
 from tui.router import AOTScreen
 
 
@@ -104,9 +110,14 @@ class HomeScreen(AOTScreen):
     IS_ROOT = True  # Esc on Home is a no-op — see AOTScreen.action_safe_back.
 
     DEFAULT_CSS = """
+    HomeScreen #home-banner {
+        height: auto;
+        padding: 1 1 0 1;
+    }
     HomeScreen #home-list {
         height: auto;
-        max-height: 50%;
+        max-height: 40%;
+        padding: 1 1 0 1;
     }
     HomeScreen #home-preview {
         padding: 1 1 0 1;
@@ -119,7 +130,7 @@ class HomeScreen(AOTScreen):
     ]
 
     def breadcrumb_segments(self) -> list[str]:
-        return ["aot", "home"]
+        return ["agent-output-tracer", "home"]
 
     def footer_hints(self) -> list[tuple[str, str]]:
         return [
@@ -141,6 +152,10 @@ class HomeScreen(AOTScreen):
 
     def compose_body(self):
         with Vertical():
+            # Banner content is rendered against the active theme on
+            # mount (we need `self.app` for the accent colour, which
+            # isn't available during compose).
+            yield Static("", id="home-banner", markup=False)
             yield OptionList(
                 _menu_item(
                     "sessions",
@@ -165,6 +180,10 @@ class HomeScreen(AOTScreen):
             yield Static(_render_preview("sessions"), id="home-preview", markup=False)
 
     def on_mount(self) -> None:
+        try:
+            self.query_one("#home-banner", Static).update(render_banner(self.app))
+        except Exception:
+            pass
         self.query_one(OptionList).focus()
 
     def on_option_list_option_highlighted(self, event: OptionList.OptionHighlighted) -> None:

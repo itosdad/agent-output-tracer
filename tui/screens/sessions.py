@@ -58,7 +58,7 @@ class SessionsScreen(AOTScreen):
         self._sids: list[str] = []
 
     def breadcrumb_segments(self) -> list[str]:
-        return ["aot", "sessions"]
+        return ["agent-output-tracer", "sessions"]
 
     def footer_hints(self) -> list[tuple[str, str]]:
         return [
@@ -244,10 +244,12 @@ def _run_export(app, session_id: str, values: dict | None, data_dir) -> None:
                 output_path=Path(output) if output else None,
             )
     except Exception as exc:
-        app.notify(f"export failed: {exc}", severity="error", title="aot")
+        app.notify(f"export failed: {exc}", severity="error", title="agent-output-tracer")
         return
     label = output or "(stdout)"
-    app.notify(f"exported → {label}", severity="information", title="aot", timeout=3)
+    app.notify(
+        f"exported → {label}", severity="information", title="agent-output-tracer", timeout=3
+    )
 
 
 def _render_session_preview(sid: str, *, data_dir) -> Text:

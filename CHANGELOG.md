@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-05-16 — Display name + OhMyZsh-style banner
+
+### Added
+
+- **`tui._banner` module** centralises the application's formal
+  identity: `APP_NAME = "agent-output-tracer"`, `TAGLINE`, and a
+  `render_banner(app)` helper that returns themed Rich Text.
+- **Home banner.** A slant-figlet ASCII rendering of "AOT" sits at
+  the top of the Home screen, with the formal product name and
+  tagline aligned beside it, and a version + quick-key strip below:
+
+      ___    ____  ______
+     /   |  / __ \/_  __/
+    / /| | / / / / / /     agent-output-tracer
+   / ___ |/ /_/ / / /      forensic debugger for AI agent sessions
+  /_/  |_|\____/ /_/
+
+  v0.16.0  ·  ? help  ·  : palette  ·  t cycle theme
+
+  Colours follow the active theme accent — cyan on Codex, salmon on
+  Claude. Renders on Home only; deeper screens own their own chrome.
+
+### Changed
+
+- **Display name everywhere is `agent-output-tracer`, not `aot`.**
+  Every breadcrumb root, every toast `title=` field, the terminal
+  window title (`App.TITLE`), the help overlay heading — all read
+  the new constant. The CLI binary stays `aot` (and so does the
+  config-file path `~/.config/aot/`); only user-facing display
+  changed.
+
+### Tests
+
+- 3 new tests: banner constants expose the full product name, Home
+  renders the ASCII banner with the slant-font signature, the App
+  window title matches the constant.
+- Updated breadcrumb assertions across the smoke tests
+  (`["aot", "home"]` → `["agent-output-tracer", "home"]` etc.).
+
 ## [0.15.1] — 2026-05-16 — Bare `aot tui` reads the live engine env var
 
 ### Changed

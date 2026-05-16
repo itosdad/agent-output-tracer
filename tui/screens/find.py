@@ -47,7 +47,7 @@ class FindScreen(AOTScreen):
         super().__init__()
 
     def breadcrumb_segments(self) -> list[str]:
-        return ["aot", "find"]
+        return ["agent-output-tracer", "find"]
 
     def footer_hints(self) -> list[tuple[str, str]]:
         return [

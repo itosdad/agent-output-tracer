@@ -39,7 +39,7 @@ class TraceScreen(AOTScreen):
         super().__init__()
 
     def breadcrumb_segments(self) -> list[str]:
-        return ["aot", "trace"]
+        return ["agent-output-tracer", "trace"]
 
     def footer_hints(self) -> list[tuple[str, str]]:
         return [

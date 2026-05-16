@@ -34,7 +34,7 @@ class StatsScreen(AOTScreen):
 
     def breadcrumb_segments(self) -> list[str]:
         sid_short = self.session_id[:8] if self.session_id != "latest" else "latest"
-        return ["aot", "stats", sid_short]
+        return ["agent-output-tracer", "stats", sid_short]
 
     def footer_hints(self) -> list[tuple[str, str]]:
         return [

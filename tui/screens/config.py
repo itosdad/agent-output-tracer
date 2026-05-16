@@ -26,7 +26,7 @@ class ConfigScreen(AOTScreen):
     ]
 
     def breadcrumb_segments(self) -> list[str]:
-        return ["aot", "config"]
+        return ["agent-output-tracer", "config"]
 
     def footer_hints(self) -> list[tuple[str, str]]:
         return [
@@ -58,10 +58,15 @@ class ConfigScreen(AOTScreen):
         clear_history()
         if had_history:
             self.app.notify(
-                "sticky defaults cleared", severity="information", title="aot", timeout=2
+                "sticky defaults cleared",
+                severity="information",
+                title="agent-output-tracer",
+                timeout=2,
             )
         else:
-            self.app.notify("nothing to clear", severity="information", title="aot", timeout=1)
+            self.app.notify(
+                "nothing to clear", severity="information", title="agent-output-tracer", timeout=1
+            )
         self._refresh_view()
 
     def _refresh_view(self) -> None:

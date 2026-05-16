@@ -58,7 +58,7 @@ class EventDetailScreen(AOTScreen):
 
     def breadcrumb_segments(self) -> list[str]:
         return [
-            "aot",
+            "agent-output-tracer",
             self._session_id[:8],
             "timeline",
             f"event {self._idx} · {self._event.get('event_type') or '?'}",
@@ -142,7 +142,7 @@ class EventDetailScreen(AOTScreen):
             self.app.notify(
                 f"note save failed: {exc}",
                 severity="error",
-                title="aot",
+                title="agent-output-tracer",
             )
             return
         # Toast confirmation — silent disk writes leave the user
@@ -150,7 +150,7 @@ class EventDetailScreen(AOTScreen):
         self.app.notify(
             f"note saved on event {self._idx}",
             severity="information",
-            title="aot",
+            title="agent-output-tracer",
             timeout=2,
         )
 

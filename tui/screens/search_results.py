@@ -49,7 +49,7 @@ class SearchResultsScreen(AOTScreen):
 
     def breadcrumb_segments(self) -> list[str]:
         preview = self.pattern[:18] + ("…" if len(self.pattern) > 18 else "")
-        return ["aot", "search", repr(preview)]
+        return ["agent-output-tracer", "search", repr(preview)]
 
     def footer_hints(self) -> list[tuple[str, str]]:
         return [

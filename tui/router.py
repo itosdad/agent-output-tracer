@@ -82,7 +82,7 @@ class AOTScreen(Screen):
 
     def breadcrumb_segments(self) -> list[str]:
         """Return ['aot', ..., self.TITLE] for the breadcrumb bar."""
-        return ["aot", self.TITLE]
+        return ["agent-output-tracer", self.TITLE]
 
     def footer_hints(self) -> list[tuple[str, str]]:
         """Per-screen keybind hints — `[(key, label), ...]`."""
@@ -201,20 +201,22 @@ class AOTScreen(Screen):
             payload = _focused_text(self) or ""
         if not payload:
             self.app.bell()
-            self.app.notify("nothing to yank", severity="warning", title="aot", timeout=1)
+            self.app.notify(
+                "nothing to yank", severity="warning", title="agent-output-tracer", timeout=1
+            )
             return
         if copy(payload):
             self.app.notify(
                 f"yanked {len(payload)} chars to clipboard",
                 severity="information",
-                title="aot",
+                title="agent-output-tracer",
                 timeout=2,
             )
         else:
             self.app.notify(
                 "clipboard tool not found (install pbcopy / xclip / xsel)",
                 severity="error",
-                title="aot",
+                title="agent-output-tracer",
                 timeout=3,
             )
 
@@ -238,7 +240,7 @@ class AOTScreen(Screen):
             self.app.notify(
                 f"theme: {self.app.theme}",
                 severity="information",
-                title="aot",
+                title="agent-output-tracer",
                 timeout=1,
             )
         except Exception:

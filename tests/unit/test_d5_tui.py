@@ -135,7 +135,7 @@ def test_home_screen_constructs():
     screen = HomeScreen()
     assert screen.TITLE == "home"
     crumbs = screen.breadcrumb_segments()
-    assert crumbs == ["aot", "home"]
+    assert crumbs == ["agent-output-tracer", "home"]
     hints = screen.footer_hints()
     assert any(k == "enter" for k, _ in hints)
 
@@ -146,7 +146,7 @@ def test_sessions_screen_constructs(plugin_data_dir):
 
     screen = SessionsScreen(data_dir=plugin_data_dir)
     assert screen.TITLE == "sessions"
-    assert screen.breadcrumb_segments() == ["aot", "sessions"]
+    assert screen.breadcrumb_segments() == ["agent-output-tracer", "sessions"]
 
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
@@ -156,7 +156,7 @@ def test_timeline_screen_constructs(plugin_data_dir):
     screen = TimelineScreen("abcd-1234-5678", data_dir=plugin_data_dir)
     assert screen.session_id == "abcd-1234-5678"
     crumbs = screen.breadcrumb_segments()
-    assert crumbs[0] == "aot"
+    assert crumbs[0] == "agent-output-tracer"
     assert crumbs[-1] == "timeline"
     # Breadcrumb uses first 8 chars of the session id.
     assert crumbs[1] == "abcd-123"
@@ -1115,6 +1115,51 @@ async def test_timeline_syncs_theme_to_session_engine(plugin_data_dir):
         assert app.screen.__class__.__name__ == "TimelineScreen"
         # Timeline._sync_theme_to_engine ran on mount → claude theme.
         assert app.theme == CLAUDE_THEME.name
+
+
+# ---- Phase 4.A: banner + display name ----
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+def test_banner_constants_use_full_product_name():
+    """The banner module must expose the full product name (not the
+    'aot' short form) for use across breadcrumbs, toast titles, and
+    the terminal window title."""
+    from tui._banner import APP_NAME, TAGLINE
+
+    assert APP_NAME == "agent-output-tracer"
+    assert TAGLINE  # non-empty
+    assert "aot" not in TAGLINE.lower().split()  # no abbreviation in the tagline
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_home_renders_ascii_banner(plugin_data_dir):
+    """Home must render the OhMyZsh-style ASCII banner above the
+    function picker. We probe for both the figlet glyphs (`/_/` is a
+    signature of the slant font) and the formal product name."""
+    from textual.widgets import Static
+
+    from tui._banner import APP_NAME
+    from tui.app import AOTApp
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        banner = app.screen.query_one("#home-banner", Static)
+        text = str(banner.content)
+        assert APP_NAME in text
+        # Slant-font signature — the "/_/" tail of any letter.
+        assert "/_/" in text
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+def test_app_window_title_is_full_product_name():
+    """Terminal window title (App.TITLE) shows the full name."""
+    from tui._banner import APP_NAME
+    from tui.app import AOTApp
+
+    assert AOTApp.TITLE == APP_NAME
 
 
 # ---- Phase 4.A: theme override guard + launch precedence ----

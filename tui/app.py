@@ -25,6 +25,7 @@ from textual.binding import Binding
 
 from core.session_io import list_sessions, load_metadata
 from core.session_resolver import resolve_session_id
+from tui._banner import APP_NAME
 from tui.screens.home import HomeScreen
 from tui.screens.sessions import SessionsScreen
 from tui.screens.timeline import TimelineScreen, _render_row  # noqa: F401 — re-export
@@ -36,6 +37,8 @@ _THEMES_DIR = Path(__file__).resolve().parent / "themes"
 
 class AOTApp(App):
     """Main TUI application."""
+
+    TITLE = APP_NAME  # terminal window title
 
     CSS_PATH = [
         str(_THEMES_DIR / "base.tcss"),

@@ -41,7 +41,7 @@ class DoctorScreen(AOTScreen):
         super().__init__()
 
     def breadcrumb_segments(self) -> list[str]:
-        return ["aot", "doctor"]
+        return ["agent-output-tracer", "doctor"]
 
     def footer_hints(self) -> list[tuple[str, str]]:
         return [

@@ -24,7 +24,7 @@ class ThemeScreen(AOTScreen):
     ]
 
     def breadcrumb_segments(self) -> list[str]:
-        return ["aot", "theme"]
+        return ["agent-output-tracer", "theme"]
 
     def footer_hints(self) -> list[tuple[str, str]]:
         return [
@@ -89,7 +89,9 @@ class ThemeScreen(AOTScreen):
             # Same as `t` — record the user's explicit choice so
             # Timeline reloads don't silently flip it back.
             self.app.user_theme_override = True
-            self.app.notify(f"theme: {name}", severity="information", title="aot", timeout=1)
+            self.app.notify(
+                f"theme: {name}", severity="information", title="agent-output-tracer", timeout=1
+            )
         except Exception:
             self.app.bell()
             return

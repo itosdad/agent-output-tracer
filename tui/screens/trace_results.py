@@ -48,7 +48,7 @@ class TraceResultsScreen(AOTScreen):
 
     def breadcrumb_segments(self) -> list[str]:
         preview = self.phrase[:14] + ("…" if len(self.phrase) > 14 else "")
-        return ["aot", "trace", repr(preview)]
+        return ["agent-output-tracer", "trace", repr(preview)]
 
     def footer_hints(self) -> list[tuple[str, str]]:
         return [
