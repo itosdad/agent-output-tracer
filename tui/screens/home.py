@@ -202,11 +202,21 @@ class HomeScreen(AOTScreen):
         )
 
     def on_mount(self) -> None:
+        self._refresh_banner()
+        # Re-bake the banner whenever the app theme changes — Rich Text
+        # captures the hex value at construction time, so without this
+        # the ASCII art stays painted in whatever accent was active when
+        # the screen first mounted (visible on the Codex SVG where the
+        # AOT art rendered in salmon instead of cyan because Home
+        # mounted before Pilot forced the theme).
+        self.watch(self.app, "theme", lambda _o, _n: self._refresh_banner())
+        self.query_one(OptionList).focus()
+
+    def _refresh_banner(self) -> None:
         try:
             self.query_one("#home-banner", Static).update(render_banner(self.app))
         except Exception:
             pass
-        self.query_one(OptionList).focus()
 
     def on_option_list_option_highlighted(self, event: OptionList.OptionHighlighted) -> None:
         """Update the preview pane as the user steps through the menu."""
