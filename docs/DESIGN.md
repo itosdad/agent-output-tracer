@@ -1,28 +1,28 @@
 ---
-title: agent-output-tracer — AI Agent Session Forensic Debugger (設計版)
+title: agent-output-tracer — AI Agent Session Forensic Debugger (design version)
 plugin_name: agent-output-tracer
 target_repo: ~/work/agent-output-tracer/
 intended_engines:
-  - Claude Code (公式 plugin 機構 → 主軸実装)
-  - Codex CLI (compatible 実装、Phase C で対応)
-distribution_model: standalone plugin package（host repo に install されるが host repo の構造に依存しない汎用 plugin）
+  - Claude Code (official plugin mechanism → primary implementation)
+  - Codex CLI (compatible implementation, supported in Phase C)
+distribution_model: standalone plugin package (installed into a host repo but with no dependency on the host repo's structure — a generic plugin)
 date: 2026-05-14
 author: Claude (claude-opus-4-7, 1M context)
-status: design draft (実装着手前、他セッションへ引継ぎ可能な粒度で記述)
+status: design draft (pre-implementation, written at a granularity that can be handed off to another session)
 primary_sources:
-  - Claude Code Hooks 公式 docs: https://code.claude.com/docs/en/hooks.md
-  - Claude Code Plugins 公式 docs: https://code.claude.com/docs/en/plugins.md
+  - Claude Code Hooks official docs: https://code.claude.com/docs/en/hooks.md
+  - Claude Code Plugins official docs: https://code.claude.com/docs/en/plugins.md
   - Claude Code Plugins Reference: https://code.claude.com/docs/en/plugins-reference.md
   - Claude Code Settings: https://code.claude.com/docs/en/settings.md
 verification_dates:
-  - Claude Code plugin / hooks 仕様: 2026-05-14 (claude-code-guide subagent 経由)
-  - Codex hook event 構造: 2026-05-14 (host repo の既存実装からの実測)
-  - Codex 公式 hooks docs verify: 2026-05-14 〜 2026-05-15 (general-purpose subagent 経由、OpenAI 公式 docs `developers.openai.com/codex/hooks` + generated schemas)
+  - Claude Code plugin / hooks spec: 2026-05-14 (via claude-code-guide subagent)
+  - Codex hook event structure: 2026-05-14 (empirically measured against the host repo's existing implementation)
+  - Codex official hooks docs verify: 2026-05-14 to 2026-05-15 (via general-purpose subagent, OpenAI official docs `developers.openai.com/codex/hooks` + generated schemas)
 handoff_notes:
-  - 本 doc は単独で読んで実装着手できる粒度を意図して書かれている
-  - 他セッション・他 agent が引き継ぐ場合は §13 限界 + §11 実装計画を最初に確認
-  - 主機能は §8 CLI コマンド一覧。implementation は §7 architecture と §6 config から
-  - 設計判断の背景・経緯は §0.5（design rationale）と §修訂履歴 を参照
+  - This doc is intended to be readable standalone at a granularity that lets you start implementation
+  - When another session / another agent picks this up, read §13 limitations + §11 implementation plan first
+  - Primary features are in §8 CLI command list. For implementation, start from §7 architecture and §6 config
+  - For the background and history of design decisions, see §0.5 (design rationale) and §Revision history
 ---
 
 # ⚠ Historical baseline — Phase A–C design draft (2026-05-14)
@@ -54,100 +54,102 @@ still load-bearing for anyone reviewing PRs or contributing.
 
 # 0. Executive Summary
 
-## 0.1 一言で
+## 0.1 In one sentence
 
-**`agent-output-tracer`** は、AI agent (Claude Code / Codex 等) の session を完全に記録し、user が agent の出力に違和感を感じた時に「**何が、いつ、どの順序で、どの input から派生して agent の出力に至ったか**」を replay / query で追跡可能にする **issue-agnostic な forensic debugger plugin** である。
+**`agent-output-tracer`** is an **issue-agnostic forensic debugger plugin** that fully records sessions of AI agents (Claude Code / Codex, etc.) so that when the user notices something off in the agent's output, they can replay / query to trace **what happened, when, in what order, and which inputs the agent's output was derived from**.
 
-## 0.2 なぜ必要か
+## 0.2 Why it is needed
 
-AI agent は誤った出力を出すことがある。原因は多岐に渡る：
+AI agents sometimes produce wrong outputs. The causes are varied:
 
-- file の読み落とし / 読み過ぎ
-- 別 namespace との混線
-- 過去の routing 履歴に影響された誤判断
-- Context Rot（attention 状態の劣化）
-- skill / tool の誤選択
-- user 指示の誤解
-- hallucination (出力に source ない情報)
+- Missing or over-reading a file
+- Cross-namespace bleed
+- Mis-judgment influenced by past routing history
+- Context Rot (degradation of attention state)
+- Wrong choice of skill / tool
+- Misunderstanding the user's instructions
+- Hallucination (information in the output with no source)
 
-**user が違和感に気づいた時点で何が起きたか追跡できる仕組み**があれば、原因種別を事前に分類する必要はない。本 plugin は user の **「これおかしい、なぜ？」** に対する forensic 答えを提供する。
+If there is a **mechanism to trace what happened the moment the user notices something off**, there is no need to classify the cause type in advance. This plugin provides a forensic answer to the user's **"this looks wrong, why?"**.
 
-## 0.3 主機能（preview）
+## 0.3 Main features (preview)
 
 ```bash
-# 直近 session の timeline 再生
+# Replay the timeline of the most recent session
 $ agent-output-tracer replay --session latest
 
-# 違和感のある出力部分から逆引き
-$ agent-output-tracer trace --session abc123 --output "DI コンテナを使い..."
-# → 「DI コンテナ」という単語が初めて出現した event を特定
-# → その前に agent が読了した files / user の prompts を表示
+# Reverse-lookup from a suspicious portion of the output
+$ agent-output-tracer trace --session abc123 --output "uses a DI container..."
+# → Identifies the event where the word "DI container" first appeared
+# → Displays the files / user prompts the agent read prior to that
+# → Identifies the event where the word "DI container" first appeared
+# → Displays the files / user prompts the agent read prior to that
 
-# 特定の tool 呼び出しの理由を query
+# Query the reason for a specific tool invocation
 $ agent-output-tracer why --session abc123 --event "Read(file_X) at 10:23:45"
-# → 直前の user prompt / agent reasoning を表示
+# → Displays the immediately preceding user prompt / agent reasoning
 
-# user 指示 vs agent action の差分
+# Diff between user instructions and agent actions
 $ agent-output-tracer diff --session abc123
-# → user が指示していない action を強調
+# → Highlights actions the user did not instruct
 
-# session 内全文検索
+# Full-text search within a session
 $ agent-output-tracer grep --session abc123 --pattern "file X"
 
-# 因果図 export
+# Export a causal graph
 $ agent-output-tracer causal-graph --session abc123 --output ./graph.md
 ```
 
-## 0.4 設計の特徴
+## 0.4 Design characteristics
 
-1. **Issue-agnostic**: 違和感の種別（hallucination / rot / wrong tool / etc.）を事前分類しない。「**事実経路の再構築**」のみ提供
-2. **User-driven**: plugin が proactive に「rot 起きてる」と判定しない。user が違和感を覚えた時点で query を投げる
-3. **Mechanical record**: hook で session を完全記録、agent compliance に依存しない
-4. **Read-only forensic**: agent 動作に介入せず、観測のみ
-5. **Host repo 非汚染**: plugin data dir に閉じる、host repo を一切変更しない
-6. **Engine-agnostic core**: Claude Code 主軸、Codex compatible
+1. **Issue-agnostic**: Does not classify the kind of anomaly (hallucination / rot / wrong tool / etc.) in advance. Only provides **reconstruction of the factual trail**.
+2. **User-driven**: The plugin does not proactively declare "rot is happening". The user notices something off and issues a query.
+3. **Mechanical record**: Fully records sessions via hooks, without depending on agent compliance.
+4. **Read-only forensic**: Does not interfere with agent behavior — observation only.
+5. **No host repo contamination**: Contained to the plugin data dir, does not modify the host repo at all.
+6. **Engine-agnostic core**: Claude Code is the primary axis, Codex is compatible.
 
-## 0.5 設計判断の rationale（なぜこの設計か）
+## 0.5 Design rationale (why this design)
 
-本 plugin の主機能を「**自動検知**」ではなく「**forensic / debug**」に据えた判断には、棄却した代替案との比較がある。
+The decision to put this plugin's main feature at **"forensics / debug"** rather than **"automatic detection"** was made by comparison against rejected alternatives.
 
-| 観点 | 棄却された代替案（pattern 自動検知 plugin） | 本 doc の設計（forensic debugger） |
+| Aspect | Rejected alternative (pattern auto-detection plugin) | This doc's design (forensic debugger) |
 |---|---|---|
-| 主機能 | 検知パターンで rot を自動検知 | session 完全記録 + 任意 query で原因 trace |
-| 検知主体 | plugin が proxy で判定 | user が違和感に気づく、plugin は forensic data 提供 |
-| issue 範囲 | Context Rot 限定 | 任意の agent 不具合（rot / hallucination / wrong tool / etc.）|
-| 哲学的根拠 | rot の proxy detection | rot は内部状態で直接検知不可能、forensic recorder に徹する方が正直 |
-| Pattern 検知（P-X 系）| main 機能 | **付録の副機能**（replay 時の anomaly hint として副次表示）|
+| Main feature | Auto-detect rot via detection patterns | Full session recording + arbitrary query for cause tracing |
+| Detection actor | Plugin judges via proxy | User notices the anomaly, plugin provides forensic data |
+| Issue scope | Limited to Context Rot | Any agent malfunction (rot / hallucination / wrong tool / etc.) |
+| Philosophical basis | Proxy detection of rot | Rot cannot be directly detected from internal state; being a forensic recorder is more honest |
+| Pattern detection (P-X series) | Main feature | **Subsidiary feature in the appendix** (shown as anomaly hint during replay) |
 
-棄却理由：**proxy 問題**。pattern 自動検知は「rot 兆候の proxy（同 file 重複 read 等）」を観測するが、proxy ≠ rot 本体（rot は LLM 内部の attention 状態）。proxy 単独では false positive / false negative を避けられず、「正確検知できる」とは謳えない。本 plugin は **「user の anomaly 検知 + plugin の forensic recorder」** に役割分担し、proxy の限界を受け入れた上で確かな価値（事実経路の再構築）を提供する設計に収束した。
+Reason for rejection: **the proxy problem**. Pattern auto-detection observes "proxies of rot symptoms (e.g., repeated reads of the same file)", but proxy ≠ rot itself (rot is the LLM's internal attention state). Proxies alone cannot avoid false positives / false negatives, and we cannot claim "we can detect it accurately". This plugin converges on a design that splits roles into **"user as anomaly detector + plugin as forensic recorder"**, accepting the limits of proxies and providing a certain value (reconstruction of the factual trail).
 
-## 0.6 完成形イメージ（user 視点）
+## 0.6 Image of the finished form (from the user's perspective)
 
 ```
 [Day 1] $ claude plugin install ~/work/agent-output-tracer
 ✓ Installed agent-output-tracer v0.1.0
 
-[Day 1 - Day N] user が agent を host repo で使う
-  → plugin が裏で session を完全記録（user は意識しない）
+[Day 1 - Day N] User uses the agent in the host repo
+  → The plugin records sessions fully in the background (user is not aware)
 
-[Day N+1] user: "今朝の agent 出力、なんか変だった..."
+[Day N+1] User: "Something felt off about the agent's output this morning..."
   $ agent-output-tracer replay --session 2026-05-15-am1
   
-  [09:30:00] [user] "FooBar コンポーネントを実装して"
+  [09:30:00] [user] "Implement a FooBar component"
   [09:30:02] [agent] thinking...
   [09:30:03] [tool: Read] CLAUDE.md (12KB)
   [09:30:05] [tool: Glob] "src/**/*.tsx" → 23 files
-  [09:30:08] [tool: Read] src/lib/di.ts (3KB)  ← ⚠️ user が指示してない file
-  [09:30:12] [agent response] "FooBar.tsx を作成、DI コンテナで..."
+  [09:30:08] [tool: Read] src/lib/di.ts (3KB)  ← ⚠️ file the user did not instruct
+  [09:30:12] [agent response] "I will create FooBar.tsx using a DI container..."
   
-  → user: "あー、DI を勝手に持ち出してきたのか。trace してみよう"
+  → User: "Ah, it pulled DI in on its own. Let me trace this."
   
   $ agent-output-tracer trace --session 2026-05-15-am1 \
-    --output "DI コンテナで"
+    --output "DI container"
   
   Output mentions "DI" first at 09:30:12
   Causal trail:
-    - user prompt at 09:30:00: "FooBar コンポーネントを実装して" (no DI mention)
+    - user prompt at 09:30:00: "Implement a FooBar component" (no DI mention)
     - read CLAUDE.md at 09:30:03: ✗ no "DI" in content
     - read di.ts at 09:30:08: ✓ first source of "DI"
   
@@ -158,119 +160,119 @@ $ agent-output-tracer causal-graph --session abc123 --output ./graph.md
   Hypothesis: agent read di.ts speculatively after Glob, then 
               incorporated into design decision
   
-  → user: "なるほど、Glob 結果から余計な file 読んだのか。CLAUDE.md
-          に 'DI 使わない' を書こう、または agent prompt に明示しよう"
+  → User: "I see, it read an extraneous file from the Glob results.
+           I'll write 'do not use DI' in CLAUDE.md, or make it explicit in the agent prompt."
 ```
 
-これが plugin の本質的価値。user は **「事実経路を見て自分で判断する」** ことができる。plugin は判断しない。
+This is the plugin's essential value. The user can **"look at the factual trail and judge for themselves"**. The plugin does not judge.
 
 ---
 
-# 1. Plugin の目的と非目的
+# 1. Plugin purpose and non-purposes
 
-## 1.1 目的（Why this exists）
+## 1.1 Purpose (Why this exists)
 
-AI agent の出力に違和感を覚えた user が、**追加で agent と対話することなく**、**hook で記録された session データだけから** 何が起きたかを再構築できる仕組みを提供する。
+Provide a mechanism so that when a user feels something is off about agent output, they can reconstruct what happened **without further dialogue with the agent**, **using only the session data recorded by hooks**.
 
-具体的に：
+Specifically:
 
-| user の question | plugin が提供する答え |
+| User's question | Answer the plugin provides |
 |---|---|
-| 「なぜ agent はこの file を読んだ？」 | その file が読まれた event、直前の user prompt / agent action、その file が Glob 結果か明示参照かを表示 |
-| 「agent はいつこの情報を見た？」 | 該当 string を含む tool result の event timestamp、source file |
-| 「user 指示と違うことをしているか？」 | user prompt 一覧と agent action 一覧の対照、user が触れていない対象への access を強調 |
-| 「session のどこから挙動がおかしくなった？」 | session timeline の全体像、user が変な点を identify するための replay |
-| 「この出力の根拠 file はどこ？」 | 出力に含まれる string の source（読了 file 内に存在するか、それとも hallucination 可能性）|
+| "Why did the agent read this file?" | Shows the event where the file was read, the immediately preceding user prompt / agent action, and whether the file was a Glob result or an explicit reference |
+| "When did the agent see this information?" | Event timestamp and source file of the tool result containing the given string |
+| "Is the agent doing something different from the user's instructions?" | Side-by-side of user prompts and agent actions, highlighting access to things the user never mentioned |
+| "Where in the session did behavior go wrong?" | Overall view of the session timeline, replay for the user to identify the suspicious point |
+| "Where is the basis file for this output?" | Source of the string in the output (whether it exists inside a read file, or whether it's a possible hallucination) |
 
-## 1.2 非目的（Out of scope）
+## 1.2 Non-purposes (Out of scope)
 
-| 非目的 | 理由 |
+| Non-purpose | Reason |
 |---|---|
-| 違和感の種類を自動分類する | user が違和感に気づいた時点で十分、種別は user の判断 |
-| Context Rot などの特定 issue を自動検知する | proxy detection は不正確（§0.5 rationale 参照）。pattern 検知は **anomaly hint** として副次化 |
-| agent 出力の正誤判定 | hook データだけでは「正しさ」は決定不能、人間判断に委ねる |
-| agent 動作の block / modify | read-only forensic recorder。介入しない |
-| host repo への書込 | plugin data dir に閉じる |
-| LLM 内部状態の観測 | hook は外部 event のみ取得、attention 状態等は不可視 |
-| session 跨ぎの長期挙動分析 | 各 session 内 forensic に focus、長期分析は外部 tool |
-| 自動修正 / 推奨 | recorder であり advisor ではない |
+| Automatic classification of the anomaly type | Once the user notices the anomaly that is sufficient; classification is the user's judgment |
+| Auto-detection of specific issues like Context Rot | Proxy detection is inaccurate (see §0.5 rationale). Pattern detection is demoted to a subsidiary **anomaly hint** |
+| Judging correctness of agent output | "Correctness" is undecidable from hook data alone; defer to human judgment |
+| Block / modify agent behavior | Read-only forensic recorder. No intervention |
+| Writing to the host repo | Contained to the plugin data dir |
+| Observation of LLM internal state | Hooks only obtain external events; attention state etc. are invisible |
+| Cross-session long-term behavior analysis | Focused on within-session forensics; long-term analysis is for external tools |
+| Auto-correction / recommendation | A recorder, not an advisor |
 
-## 1.3 想定 user
+## 1.3 Intended users
 
-| user type | 利用シーン |
+| User type | Use scenario |
 |---|---|
-| 開発者 | agent が想定外の挙動 → debug |
-| AI safety researcher | agent 挙動の経験的観察 |
-| プロダクト team | agent-powered features の品質問題の root cause 調査 |
-| OS / multi-skill repo 運用者 | 案件横断で agent を使う中での挙動追跡 |
-| Audit / compliance | agent 出力の根拠 trace（regulatory 要件）|
+| Developer | Agent behaves unexpectedly → debug |
+| AI safety researcher | Empirical observation of agent behavior |
+| Product team | Root-cause investigation of quality issues in agent-powered features |
+| OS / multi-skill repo operators | Tracking agent behavior across mixed projects |
+| Audit / compliance | Tracing the basis of agent output (regulatory requirement) |
 
-## 1.4 何が plugin の強みか
+## 1.4 What is this plugin's strength
 
-本 plugin の強みは「**Context Rot を正確に検知できる**」ではない。proxy 検知の本質的限界により、それは原理的に不可能（§0.5 の rationale を参照）。本 plugin の強みは「**user が違和感を感じた瞬間、追加コストゼロで session 全体を mechanical に再生・query できる**」こと。
+This plugin's strength is **not** "we can detect Context Rot accurately". The fundamental limit of proxy detection makes that impossible in principle (see §0.5 rationale). The plugin's strength is **"the moment the user feels something is off, the entire session can be mechanically replayed / queried at zero added cost"**.
 
-これは：
+That is:
 
-- **人間 = anomaly detector**（人間判断は any proxy より正確）
-- **plugin = forensic recorder + query interface**（人間が知りたいことを mechanical に取り出す）
+- **Human = anomaly detector** (human judgment is more accurate than any proxy)
+- **Plugin = forensic recorder + query interface** (mechanically retrieves what the human wants to know)
 
-の役割分担で構成される。pattern 自動検知の proxy 問題（rot 兆候 ≠ rot）を回避し、user の判断力を活かす設計。
+This is the role split. It avoids the proxy problem of pattern auto-detection (rot symptoms ≠ rot) and is a design that leverages the user's judgment.
 
 ---
 
-# 2. 設計原則
+# 2. Design principles
 
-## 2.1 Issue-agnostic（種類分類しない）
+## 2.1 Issue-agnostic (no kind-classification)
 
-| 原則 | 実装 |
+| Principle | Implementation |
 |---|---|
-| 違和感の事前分類しない | plugin に「hallucination 検知器」「rot 検知器」等の機能を main にしない |
-| 全 event を均一に記録 | tool 呼び出し、user prompt、agent response すべて同 schema で保存 |
-| query が user の語彙に合わせる | "なぜこの file を読んだ？" "いつこの情報を見た？" 等、自然言語的 query を CLI で expose |
+| Do not classify the anomaly in advance | The plugin does not put a "hallucination detector" or "rot detector" as a main feature |
+| Record all events uniformly | Tool calls, user prompts, agent responses are all stored in the same schema |
+| Queries match the user's vocabulary | Natural-language-style queries like "Why was this file read?" "When did it see this info?" are exposed in the CLI |
 
-## 2.2 User-driven（user の trigger で動作）
+## 2.2 User-driven (operates on user trigger)
 
-| 原則 | 実装 |
+| Principle | Implementation |
 |---|---|
-| plugin が proactive 通知しない | live alert は default off。plugin が「rot 起きてます」と能動通知しない |
-| user の query 時にのみ分析 | hook は記録のみ、分析は CLI 経由で user 起動 |
-| session list の dashboard を提供 | user が session を見つけやすくする `list` / `latest` コマンド |
+| No proactive notification from the plugin | Live alerts off by default. The plugin does not actively say "rot is happening" |
+| Analyze only at user query time | Hooks only record; analysis is initiated by the user via the CLI |
+| Provide a session list dashboard | `list` / `latest` commands to help the user find a session |
 
-## 2.3 Mechanical（agent compliance に依存しない）
+## 2.3 Mechanical (no dependency on agent compliance)
 
-| 原則 | 実装 |
+| Principle | Implementation |
 |---|---|
-| agent が emit する marker に依存しない | hook で得られる event のみで完結 |
-| 全 tool call を捕捉 | matcher は全 tool 対応 (`Read|Glob|Grep|Edit|Write|MultiEdit|Bash`) |
-| timestamp は plugin 側で打つ | agent self-reporting に依存しない |
+| Do not rely on markers the agent emits | Self-contained using only events available from hooks |
+| Capture all tool calls | Matcher covers all tools (`Read|Glob|Grep|Edit|Write|MultiEdit|Bash`) |
+| Plugin stamps the timestamp | Does not depend on agent self-reporting |
 
 ## 2.4 Safe by default
 
-| 原則 | 実装 |
+| Principle | Implementation |
 |---|---|
-| 例外 tolerant | 全 hook で try/except、agent 動作を絶対止めない |
-| Read-only on observe | tool_input / tool_response を読むだけ、改変なし |
-| Host repo 非汚染 | data write 先は `${CLAUDE_PLUGIN_DATA}` 配下のみ |
-| Performance budget | PreToolUse < 10ms, PostToolUse < 15ms (content capture 含む) |
-| Privacy / redaction | secret pattern (API key 等) を自動 mask、retention 期限切れで自動削除 |
+| Exception-tolerant | try/except in every hook; never block agent behavior |
+| Read-only on observe | Only reads `tool_input` / `tool_response`, no modification |
+| No host repo contamination | Data write target is only under `${CLAUDE_PLUGIN_DATA}` |
+| Performance budget | PreToolUse < 10ms, PostToolUse < 15ms (including content capture) |
+| Privacy / redaction | Automatically masks secret patterns (API keys etc.); auto-deletes when retention expires |
 
 ## 2.5 Engine-agnostic core
 
-| 原則 | 実装 |
+| Principle | Implementation |
 |---|---|
-| Hook event を normalized event に変換 | engine 別 adapter (`adapters/claude_code.py`, `adapters/codex.py`) |
-| Detection / query は normalized event 上で動作 | engine 違いを isolation |
-| 新 engine 追加は adapter 追加のみ | 将来の他 LLM tool 対応容易 |
+| Convert hook events into normalized events | Per-engine adapters (`adapters/claude_code.py`, `adapters/codex.py`) |
+| Detection / query operates on normalized events | Isolates engine differences |
+| Adding a new engine only requires adding an adapter | Easy support for other future LLM tools |
 
 ---
 
-# 3. 対応 engine と hook 仕様
+# 3. Supported engines and hook spec
 
-## 3.1 Claude Code（主軸、公式仕様確認済）
+## 3.1 Claude Code (primary, official spec confirmed)
 
-Claude Code 公式 docs より（claude-code-guide subagent 経由で 2026-05-14 確認）：
+From Claude Code official docs (confirmed 2026-05-14 via claude-code-guide subagent):
 
-### 3.1.1 全 hook event 共通 fields
+### 3.1.1 Fields common to all hook events
 
 > All hooks receive JSON with these fields:
 > ```json
@@ -283,102 +285,102 @@ Claude Code 公式 docs より（claude-code-guide subagent 経由で 2026-05-14
 > }
 > ```
 
-### 3.1.2 採用する 5 hook 種別
+### 3.1.2 The 5 hook types we adopt
 
-forensic 完全記録のため以下を採用：
+For full forensic capture we adopt the following:
 
-| hook | 役割 | キャプチャするもの |
+| hook | Role | What is captured |
 |---|---|---|
-| **`UserPromptSubmit`** | user 入力時 | user prompt 全文 + timestamp |
-| **`PreToolUse`** | tool 呼び出し前 | tool_name + tool_input 全文 + timestamp |
-| **`PostToolUse`** | tool 成功完了後 | tool_response + timestamp |
-| **`Stop`** | agent 応答完了時 | response_text + stop_reason |
-| **`SessionEnd`** | session 終了時 | session 統計の最終化 + GC trigger |
+| **`UserPromptSubmit`** | On user input | Full user prompt + timestamp |
+| **`PreToolUse`** | Before tool invocation | tool_name + full tool_input + timestamp |
+| **`PostToolUse`** | After tool success | tool_response + timestamp |
+| **`Stop`** | On agent response completion | response_text + stop_reason |
+| **`SessionEnd`** | On session end | Finalize session stats + trigger GC |
 
-### 3.1.3 採用しない hook と理由
+### 3.1.3 Hooks we do not adopt, and why
 
-- `SessionStart`: 初の event を session start とみなす（独立 hook 不要）
-- `StopFailure` / `PostToolUseFailure`: error 系は別 phase で対応
-- `PermissionRequest`: 観測対象外（permission 自体は別仕組み）
+- `SessionStart`: The first event is treated as the session start (no independent hook needed)
+- `StopFailure` / `PostToolUseFailure`: Error-class events are handled in a different phase
+- `PermissionRequest`: Not observed (permission itself is a separate mechanism)
 
-### 3.1.4 hook の制御 flow
+### 3.1.4 Hook control flow
 
-すべての hook で **exit 0 + 空 stdout** を返す（観測のみ、block しない）。例外時も silent exit 0。
+All hooks return **exit 0 + empty stdout** (observation only, no blocking). On exception too, silent exit 0.
 
-## 3.2 Codex CLI（公式 spec 確認済、Phase C で実装）
+## 3.2 Codex CLI (official spec confirmed, implementation in Phase C)
 
-### 3.2.1 公式 docs（一次資料）
+### 3.2.1 Official docs (primary sources)
 
-- 公式 hooks docs: https://developers.openai.com/codex/hooks
+- Official hooks docs: https://developers.openai.com/codex/hooks
 - Plugin build docs: https://developers.openai.com/codex/plugins/build
 - Changelog: https://developers.openai.com/codex/changelog
 - Advanced config (feature flag): https://developers.openai.com/codex/config-advanced
 - Generated schemas (ground truth wire format): https://github.com/openai/codex/tree/main/codex-rs/hooks/schema/generated
 
-### 3.2.2 利用可能な hook event（公式 8 種）
+### 3.2.2 Available hook events (8 official types)
 
-公式 docs より：
+From the official docs:
 
-| 階層 | event 名 | 発火タイミング | plugin 採用 |
+| Tier | Event name | Trigger timing | Plugin adoption |
 |---|---|---|---|
-| Session level | `SessionStart` | session 開始時（source enum: `startup` / `resume` / `clear`）| ◯（session 切替の検知に使用）|
-| **(Session 終了 hook なし)** | — | — | 設計変更必要（後述）|
-| Per-turn | `UserPromptSubmit` | user 入力時 | ◎（user prompt 全文取得可）|
-| Per-turn | `Stop` | agent response 完了時 | ◎（agent response 取得 + session 単位グルーピング起点）|
-| Per-tool | `PreToolUse` | tool 呼び出し前 | ◎（中核）|
-| Per-tool | `PostToolUse` | tool 完了後（Bash / apply_patch / MCP のみ）| ◎（ただし制限あり、後述）|
-| Per-tool | `PermissionRequest` | permission 要求時 | △（採用しない、観測対象外）|
-| Compaction | `PreCompact` | session compaction 開始前（0.129+）| △（long-session 文脈で利用余地）|
-| Compaction | `PostCompact` | session compaction 完了後（0.129+）| △（同上）|
+| Session level | `SessionStart` | On session start (source enum: `startup` / `resume` / `clear`) | ◯ (used to detect session switching) |
+| **(No session-end hook)** | — | — | Requires design change (see below) |
+| Per-turn | `UserPromptSubmit` | On user input | ◎ (full user prompt obtainable) |
+| Per-turn | `Stop` | On agent response completion | ◎ (obtains agent response + becomes the session-grouping anchor) |
+| Per-tool | `PreToolUse` | Before tool invocation | ◎ (core) |
+| Per-tool | `PostToolUse` | After tool completion (Bash / apply_patch / MCP only) | ◎ (with limitations, see below) |
+| Per-tool | `PermissionRequest` | On permission request | △ (not adopted, out of observation scope) |
+| Compaction | `PreCompact` | Before session compaction starts (0.129+) | △ (potential use in long-session context) |
+| Compaction | `PostCompact` | After session compaction (0.129+) | △ (same as above) |
 
-> "`PreToolUse`, `PermissionRequest`, `PostToolUse`, `UserPromptSubmit`, and `Stop` run at turn scope." (公式 hooks docs)
+> "`PreToolUse`, `PermissionRequest`, `PostToolUse`, `UserPromptSubmit`, and `Stop` run at turn scope." (official hooks docs)
 
-### 3.2.3 共通 event input field（公式 generated schema より）
+### 3.2.3 Common event input fields (from the official generated schema)
 
-8 種すべての input が以下を required：
+The input of all 8 events requires the following:
 
-| field | 型 | 内容 |
+| field | type | content |
 |---|---|---|
-| `hook_event_name` | string（snake_case、定数）| 各 event 識別 |
-| `session_id` | string | session 識別子（format は公式仕様で「string」のみ規定、UUID は未明記）|
-| `cwd` | string | 作業 directory |
-| `model` | string | 使用モデル名 |
+| `hook_event_name` | string (snake_case, constant) | Identifies each event |
+| `session_id` | string | Session identifier (the format is only specified as "string" in the official spec; UUID is not declared) |
+| `cwd` | string | Working directory |
+| `model` | string | Model name in use |
 | `permission_mode` | enum | `default` / `acceptEdits` / `plan` / `dontAsk` / `bypassPermissions` |
-| `transcript_path` | string \| null | session transcript |
-| `turn_id`（turn-scoped 5 種のみ）| string | Codex 固有拡張 |
+| `transcript_path` | string \| null | Session transcript |
+| `turn_id` (only the 5 turn-scoped events) | string | Codex-specific extension |
 
-経験的観察との差異：
+Differences from the empirical observation:
 
-- **公式は `hook_event_name`（snake_case）のみ**。 `hookEventName`（camelCase）は **output 側**（`hookSpecificOutput.hookEventName`）でのみ使用。**`event` 単体表記は公式根拠なし** — defensive code の `event` 分岐は不要
-- **`tool_input.command` が canonical**、**`tool_input.cmd` は公式根拠なし** — defensive 分岐は古い PR の名残
+- **The official spec has `hook_event_name` (snake_case) only**. `hookEventName` (camelCase) is used **only on the output side** (`hookSpecificOutput.hookEventName`). **The standalone notation `event` has no official basis** — the `event` branch in defensive code is unnecessary.
+- **`tool_input.command` is canonical**; **`tool_input.cmd` has no official basis** — the defensive branch is a remnant of an old PR.
 
-→ Codex adapter は **`hook_event_name` + `tool_input.command`** のみ前提で実装してよい。
+→ The Codex adapter can be implemented assuming only **`hook_event_name` + `tool_input.command`**.
 
-### 3.2.4 PostToolUse の制限
+### 3.2.4 PostToolUse limitations
 
 > "`PostToolUse` runs after supported tools produce output, including Bash, `apply_patch`, and MCP tool calls. ... This doesn't intercept all shell calls yet... Similarly, this doesn't intercept `WebSearch` or other non-shell, non-MCP tool calls."
 
-→ **Codex の Read 相当（内部の非 MCP 経路）は PostToolUse 発火しない可能性が高い**。Codex 側では tool_response 取得が Claude Code 比で **限定的**。設計上の影響：tool 結果 size 計測（Phase B 機能）は Codex 側で機能限定となる。
+→ **Codex's Read equivalent (the internal non-MCP path) is highly likely not to fire PostToolUse**. On the Codex side, tool_response acquisition is **limited** compared to Claude Code. Design impact: tool result size measurement (Phase B feature) is functionally limited on the Codex side.
 
-### 3.2.5 SessionEnd の不在 — 設計変更
+### 3.2.5 Absence of SessionEnd — design change
 
-公式 generated schema directory および公式 docs の event リストに **`SessionEnd` は存在しない**。Codex で session 終了 trigger は取れない。
+`SessionEnd` does **not** exist in the official generated schema directory or in the event list of the official docs. The session-end trigger cannot be obtained from Codex.
 
-**実装方針 (Phase C-5 着地点)**:
+**Implementation policy (Phase C-5 landing point)**:
 
-- `metadata.json` は `core/recorder.append_event` が **毎 event で再書き出し** するため、`ts_end` / `tool_calls_total` / counters は常に最新。明示的な session_end イベントが無くても、operator が `replay --session latest` した時点でその session の最終 state が見える。
-- 「Stop + N 分 idle で擬似 session_end を合成する」 active な finalize loop は実装しない。recorder 側で十分 self-healing なため、追加コードの維持コストに見合わない。
-- 必要なら下流で `metadata.ts_end` を観察すれば idle 判定はクライアント側で計算可能（query/state-at が既に提供）。
+- Because `core/recorder.append_event` **rewrites `metadata.json` on every event**, `ts_end` / `tool_calls_total` / counters are always current. Even without an explicit session_end event, the latest state of a session is visible the moment the operator runs `replay --session latest`.
+- We will not implement an active finalize loop that "synthesizes a pseudo session_end after Stop + N minutes idle". The recorder side is self-healing enough that the maintenance cost of additional code is not justified.
+- If needed, downstream can compute idle judgment client-side by observing `metadata.ts_end` (query/state-at already provides this).
 
-### 3.2.6 ask 未サポート（経験的観察と一致）
+### 3.2.6 ask is not supported (matches empirical observation)
 
 > "`permissionDecision: \"allow\"` and `\"ask\"`, legacy `decision: \"approve\"`, ... are parsed but not supported yet, so they fail open."
 
-→ Codex side は **deny only**。本 plugin は read-only forensic なので ask/deny どちらも使わない（exit 0 + 空 stdout のみ）。本仕様は plugin 動作に直接影響しないが、host repo 側の他 Codex hook と並走する際の設計考慮事項。
+→ The Codex side is **deny only**. Since this plugin is read-only forensic, neither ask nor deny is used (only exit 0 + empty stdout). This spec doesn't directly affect plugin behavior, but it's a design consideration when running alongside other Codex hooks on the host repo side.
 
-### 3.2.7 Plugin 機構（公式仕様）
+### 3.2.7 Plugin mechanism (official spec)
 
-Codex 公式 plugin 機構：
+Codex official plugin mechanism:
 
 ```bash
 # Marketplace plugin install
@@ -390,77 +392,77 @@ $ codex plugin marketplace add owner/repo --sparse PATH
 $ codex plugin marketplace add ./local-marketplace-root
 ```
 
-**Plugin 構造**:
-- `.codex-plugin/plugin.json` manifest（Claude Code の `.claude-plugin/plugin.json` 相当）
-- `hooks` field で `./hooks/hooks.json` を指す
-- `hooks` 省略時は `./hooks/hooks.json` が default で自動 load
+**Plugin structure**:
+- `.codex-plugin/plugin.json` manifest (equivalent to Claude Code's `.claude-plugin/plugin.json`)
+- `hooks` field points to `./hooks/hooks.json`
+- When `hooks` is omitted, `./hooks/hooks.json` is auto-loaded as default
 
-**Plugin install 先**:
+**Plugin install destination**:
 - `~/.codex/plugins/cache/$MARKETPLACE_NAME/$PLUGIN_NAME/$VERSION/`
-- local plugin の `$VERSION` は `"local"`
+- For a local plugin, `$VERSION` is `"local"`
 
-**Marketplace 配置**:
+**Marketplace placement**:
 - repo: `$REPO_ROOT/.agents/plugins/marketplace.json`
 - personal: `~/.agents/plugins/marketplace.json`
-- Claude 互換: `$REPO_ROOT/.claude-plugin/marketplace.json`
+- Claude-compatible: `$REPO_ROOT/.claude-plugin/marketplace.json`
 
-**Feature flag 必須**:
+**Feature flag required**:
 
 ```toml
 # ~/.codex/config.toml or project .codex/config.toml
 [features]
-codex_hooks = true   # 0.129+ は hooks = true でも可（alias）
+codex_hooks = true   # In 0.129+, hooks = true is also acceptable (alias)
 ```
 
-→ これがないと hooks は **silently ignored**。Plugin install 手順で必須項目。
+→ Without this, hooks are **silently ignored**. A required item in the plugin install procedure.
 
-**Trusted project layer 制約**:
+**Trusted project layer constraint**:
 
 > "Project-local hooks load only when the project `.codex/` layer is trusted."
 
-### 3.2.8 Codex native env var の確認状況
+### 3.2.8 Status of Codex native env vars
 
-Claude Code の `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` 完全相当の **Codex native 環境変数は公式 docs では未明示**。`openai/codex-plugin-cc` repo は `${CLAUDE_PLUGIN_ROOT}` を使うが、これは Claude 互換 layer 由来。
+The **Codex native environment variable** that is the full equivalent of Claude Code's `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` **is not explicitly documented in the official docs**. The `openai/codex-plugin-cc` repo uses `${CLAUDE_PLUGIN_ROOT}`, but this comes from the Claude-compatible layer.
 
-**plugin 実装方針**: 
-- Codex install path `~/.codex/plugins/cache/$MARKETPLACE_NAME/$PLUGIN_NAME/$VERSION/` を直接使用、または `$HOME` + path 計算で plugin root を解決
-- data 保存先は plugin root 配下の `data/` または `~/.codex/plugins/data/` 等（実機 verify 必要、Phase C-1 で確定）
+**Plugin implementation policy**:
+- Use the Codex install path `~/.codex/plugins/cache/$MARKETPLACE_NAME/$PLUGIN_NAME/$VERSION/` directly, or resolve the plugin root via `$HOME` + path computation
+- Data storage destination is `data/` under the plugin root, or `~/.codex/plugins/data/`, etc. (needs real-environment verify; finalized in Phase C-1)
 
-### 3.2.9 version 依存性
+### 3.2.9 Version dependencies
 
-- Hook 機構自体は 0.114 頃 merge
-- 0.128: marketplace install / plugin-bundled hooks 整備
-- 0.129: `PreCompact` / `PostCompact` 追加、`/hooks` TUI 追加、`hooks` feature flag alias
-- 0.130: plugin details に bundled hooks 表示
+- The hook mechanism itself was merged around 0.114
+- 0.128: marketplace install / plugin-bundled hooks consolidated
+- 0.129: `PreCompact` / `PostCompact` added, `/hooks` TUI added, `hooks` feature flag alias
+- 0.130: bundled hooks shown in plugin details
 
-**plugin の Codex version 要件**: 
-- 推奨: **>= 0.128**（plugin-bundled hooks サポート）
-- compaction 関連も使うなら: **>= 0.129**
+**Plugin's Codex version requirement**:
+- Recommended: **>= 0.128** (plugin-bundled hooks support)
+- If you also use compaction-related events: **>= 0.129**
 
-### 3.2.10 経験的観察との差異 summary（Phase C 着手前 checklist）
+### 3.2.10 Diff summary against empirical observation (pre-Phase-C checklist)
 
-| 項目 | 経験的観察 | 公式 spec | 対応 |
+| Item | Empirical observation | Official spec | Action |
 |---|---|---|---|
-| `event` field 単体表記 | defensive 3 分岐 | **存在しない** | adapter で `hook_event_name` のみ前提に簡素化 |
-| `tool_input.cmd` | defensive 2 分岐 | **存在しない** | adapter で `tool_input.command` のみ前提に簡素化 |
-| `PreToolUse` 存在 | あり | あり ✓ | 一致 |
-| `PermissionRequest` 存在 | あり | あり ✓ | 一致 |
-| `PostToolUse` 存在 | 未確認 | あり（限定的）| Codex side は Bash / apply_patch / MCP のみ発火 |
-| `Stop` 存在 | 未確認 | あり | 採用、turn 終了ごと発火 |
-| `UserPromptSubmit` 存在 | 未確認 | あり（`prompt` field で全文取得可）| 採用 |
-| `SessionStart` 存在 | 未確認 | あり（`source` enum）| 採用 |
-| `SessionEnd` 存在 | 想定 | **なし** | Stop + session_id でグルーピング、または SessionStart `source="clear"` で擬似検知 |
-| `session_id` field 存在 | 未確認 | あり（string、format 未規定）| 採用 |
-| `turn_id` field | 未確認 | あり（Codex 固有、turn-scoped 5 種で required）| Codex adapter で normalized_event に optional `turn_id` として attach (Phase C-9 着地)。turn 単位 forensic を作る場合は events.jsonl から `turn_id` で groupBy する想定 |
-| 両 engine の session_id 衝突 | 想定外 | spec は format 未規定 | 両 engine とも UUID 系を発行する慣例があり実衝突確率は事実上ゼロ。`sessions/<session_id>/` を engine prefix なしで共有する現行 layout を維持し、衝突時のみ operator が `--data-dir` を分けて運用すれば足りる（Phase C-8 着地） |
-| Plugin 機構 | 未確認 | あり（`codex plugin marketplace add`）| 採用、§10.2 install 手順を更新 |
-| `${CLAUDE_PLUGIN_ROOT}` 相当 env | 未確認 | **公式明示なし** | plugin root を path 計算で解決、Phase C-1 実機 verify |
-| Feature flag `codex_hooks = true` | 未確認 | **必須**（無いと silently ignored） | install 手順で必須化 |
-| ask 未サポート | 既知 | あり ✓（fail open）| 一致、影響なし（read-only forensic）|
+| Standalone `event` field notation | 3-way defensive branch | **Does not exist** | Adapter simplifies to assume only `hook_event_name` |
+| `tool_input.cmd` | 2-way defensive branch | **Does not exist** | Adapter simplifies to assume only `tool_input.command` |
+| `PreToolUse` existence | exists | exists ✓ | Matches |
+| `PermissionRequest` existence | exists | exists ✓ | Matches |
+| `PostToolUse` existence | unverified | exists (limited) | Codex side fires for Bash / apply_patch / MCP only |
+| `Stop` existence | unverified | exists | Adopted, fires per turn end |
+| `UserPromptSubmit` existence | unverified | exists (full text via `prompt` field) | Adopted |
+| `SessionStart` existence | unverified | exists (`source` enum) | Adopted |
+| `SessionEnd` existence | assumed | **does not exist** | Group by Stop + session_id, or pseudo-detect via SessionStart `source="clear"` |
+| `session_id` field existence | unverified | exists (string, format unspecified) | Adopted |
+| `turn_id` field | unverified | exists (Codex-specific, required for the 5 turn-scoped events) | Codex adapter attaches it as optional `turn_id` on the normalized_event (Phase C-9 landing). If turn-level forensics are needed, the assumption is to groupBy on `turn_id` from events.jsonl |
+| `session_id` collision across the two engines | unforeseen | spec doesn't specify the format | Both engines conventionally issue UUID-class IDs, so the actual collision probability is effectively zero. Keep the current layout sharing `sessions/<session_id>/` without an engine prefix; if collision occurs, the operator splits with `--data-dir` (Phase C-8 landing) |
+| Plugin mechanism | unverified | exists (`codex plugin marketplace add`) | Adopted, §10.2 install procedure updated |
+| `${CLAUDE_PLUGIN_ROOT}` equivalent env | unverified | **not officially specified** | Resolve plugin root by path computation; Phase C-1 real-environment verify |
+| Feature flag `codex_hooks = true` | unverified | **Required** (silently ignored if absent) | Mandated in install procedure |
+| ask not supported | known | exists ✓ (fail open) | Matches, no impact (read-only forensic) |
 
 ## 3.3 Engine-agnostic interface
 
-各 engine の event を統一 schema に正規化：
+Normalize each engine's event to a unified schema:
 
 ```python
 normalized_event = {
@@ -470,7 +472,7 @@ normalized_event = {
     "ts": ISO 8601 with millisecond precision,
     "cwd": str,
     
-    # event_type 別の主要 field
+    # Main fields by event_type
     "user_prompt_text": str | None,  # user_prompt
     "tool_name": str | None,         # pre_tool / post_tool
     "tool_input": dict | None,       # pre_tool
@@ -478,26 +480,26 @@ normalized_event = {
     "agent_response_text": str | None,  # agent_response
     "stop_reason": str | None,       # agent_response
     
-    # 共通 derived
-    "paths": list[str],              # tool_input から抽出
-    "command": str | None,           # Bash 系
+    # Common derived
+    "paths": list[str],              # extracted from tool_input
+    "command": str | None,           # Bash-class
     
-    "raw_event": dict,               # 元 event（debug 用）
+    "raw_event": dict,               # the original event (for debug)
 }
 ```
 
-各 engine adapter (`adapters/claude_code.py`, `adapters/codex.py`) が変換責任を負う。
+Each engine adapter (`adapters/claude_code.py`, `adapters/codex.py`) is responsible for the conversion.
 
 ---
 
-# 4. Plugin パッケージ構造
+# 4. Plugin package structure
 
 ```
-~/work/agent-output-tracer/                         ← 独立 git repo
+~/work/agent-output-tracer/                         ← Independent git repo
 ├── .claude-plugin/
 │   └── plugin.json                                  ← manifest
 ├── hooks/
-│   ├── hooks.json                                    ← hook registration (Claude Code 形式)
+│   ├── hooks.json                                    ← hook registration (Claude Code format)
 │   ├── user_prompt_submit.py
 │   ├── pre_tool_use.py
 │   ├── post_tool_use.py
@@ -509,34 +511,34 @@ normalized_event = {
 │   └── codex.py                                       ← Codex event → normalized (Phase C)
 ├── core/
 │   ├── __init__.py
-│   ├── normalizer.py                                  ← normalized_event 生成
-│   ├── recorder.py                                    ← session JSONL append
-│   ├── indexer.py                                     ← per-session 検索 index 生成
-│   ├── redactor.py                                    ← secret pattern mask
+│   ├── normalizer.py                                  ← Generates normalized_event
+│   ├── recorder.py                                    ← Appends to session JSONL
+│   ├── indexer.py                                     ← Builds per-session search index
+│   ├── redactor.py                                    ← Masks secret patterns
 │   ├── path_utils.py
 │   └── time_utils.py
-├── query/                                              ← CLI 主機能
+├── query/                                              ← CLI main features
 │   ├── __init__.py
-│   ├── replay.py                                       ← timeline 再生
-│   ├── trace.py                                        ← output から逆引き
-│   ├── why.py                                          ← event の理由 query
+│   ├── replay.py                                       ← Replays the timeline
+│   ├── trace.py                                        ← Reverse-lookup from output
+│   ├── why.py                                          ← Queries the reason of an event
 │   ├── diff.py                                         ← user prompt vs agent action
-│   ├── state_at.py                                     ← time T 時点の状態
-│   ├── grep.py                                         ← 全文検索
-│   ├── causal_graph.py                                 ← 因果図生成
-│   ├── mentioned_but_not_read.py                       ← hallucination 候補抽出
-│   └── list.py                                         ← session 一覧
-├── analyzer/                                           ← 副次機能（anomaly hint patterns、replay 時に副次表示）
+│   ├── state_at.py                                     ← State at time T
+│   ├── grep.py                                         ← Full-text search
+│   ├── causal_graph.py                                 ← Generates a causal graph
+│   ├── mentioned_but_not_read.py                       ← Extracts hallucination candidates
+│   └── list.py                                         ← Lists sessions
+├── analyzer/                                           ← Subsidiary feature (anomaly hint patterns, shown during replay)
 │   ├── __init__.py
-│   ├── anomaly_hints.py                                ← replay 時の hint 出力
-│   └── patterns.py                                     ← 汎用 anomaly patterns（同一 file 重複 read / long-session outlier / routing config thrash 等、§11 Phase B-8 参照）
+│   ├── anomaly_hints.py                                ← Emits hints at replay time
+│   └── patterns.py                                     ← Generic anomaly patterns (repeated reads of the same file / long-session outlier / routing config thrash, etc.; see §11 Phase B-8)
 ├── cli/
 │   ├── __init__.py
 │   └── main.py                                         ← entry point dispatch
 ├── config/
-│   ├── default.toml                                    ← default 設定
+│   ├── default.toml                                    ← Default config
 │   └── schema.json
-├── codex/                                              ← Codex 用 setup (Phase C)
+├── codex/                                              ← Codex setup (Phase C)
 │   ├── config.toml.example
 │   └── INSTALL_CODEX.md
 ├── tests/
@@ -557,18 +559,18 @@ normalized_event = {
 │   │       ├── claude_code_sessions/
 │   │       └── codex_sessions/
 │   └── conftest.py
-├── data/                                                ← gitignored、${CLAUDE_PLUGIN_DATA} 連動
+├── data/                                                ← gitignored, tied to ${CLAUDE_PLUGIN_DATA}
 │   └── sessions/<session_id>/
-│       ├── events.jsonl                                 ← append-only event 履歴
-│       ├── metadata.json                                ← session metadata
-│       └── index.json                                   ← 検索 index
+│       ├── events.jsonl                                 ← Append-only event history
+│       ├── metadata.json                                ← Session metadata
+│       └── index.json                                   ← Search index
 ├── docs/
-│   ├── DESIGN.md                                        ← 本 doc を最終移植
-│   ├── COMMANDS.md                                      ← CLI 詳細
-│   ├── CONFIG.md                                        ← config の書き方
-│   ├── INSTALL.md                                       ← install 手順
-│   ├── PRIVACY.md                                       ← redaction / retention
-│   └── EXAMPLES.md                                      ← debug workflow 例
+│   ├── DESIGN.md                                        ← Final port of this doc
+│   ├── COMMANDS.md                                      ← CLI details
+│   ├── CONFIG.md                                        ← How to write config
+│   ├── INSTALL.md                                       ← Install procedure
+│   ├── PRIVACY.md                                       ← Redaction / retention
+│   └── EXAMPLES.md                                      ← Debug workflow examples
 ├── README.md
 ├── LICENSE
 ├── CHANGELOG.md
@@ -579,7 +581,7 @@ normalized_event = {
     └── lint.yml
 ```
 
-## 4.1 `plugin.json` の最小例
+## 4.1 Minimal example of `plugin.json`
 
 ```json
 {
@@ -600,9 +602,9 @@ normalized_event = {
 }
 ```
 
-**`hooks` field を書いてはいけない**: Claude Code は `<plugin_root>/hooks/hooks.json` を自動 load する。`plugin.json` に `"hooks": "./hooks/hooks.json"` を明示すると "Duplicate hooks file detected" エラーで読み込み失敗する。`hooks` field は **標準位置以外の追加 hook ファイル**を参照する時にだけ使う（実機 verify 済、2026-05-15 dev mode 起動時に判明）。Codex 側も同じ規約と想定（Phase C で再 verify）。
+**Do not write a `hooks` field**: Claude Code auto-loads `<plugin_root>/hooks/hooks.json`. If you explicitly set `"hooks": "./hooks/hooks.json"` in `plugin.json`, loading fails with "Duplicate hooks file detected". The `hooks` field is only for referencing **additional hook files outside the standard location** (verified on real environment, discovered 2026-05-15 when starting dev mode). The Codex side is assumed to follow the same convention (re-verify in Phase C).
 
-## 4.2 `hooks/hooks.json` の例
+## 4.2 Example of `hooks/hooks.json`
 
 ```json
 {
@@ -655,11 +657,11 @@ normalized_event = {
 
 ---
 
-# 5. データ schema
+# 5. Data schema
 
-## 5.1 `events.jsonl` の event entry
+## 5.1 The event entry in `events.jsonl`
 
-各 hook が以下の形式で append（1 event = 1 行）：
+Each hook appends in the following format (1 event = 1 line):
 
 ```json
 {
@@ -677,13 +679,13 @@ normalized_event = {
 }
 ```
 
-event_type 別の追加 field：
+Additional fields by event_type:
 
 ```json
 // user_prompt
 {
   "event_type": "user_prompt",
-  "user_prompt_text": "FooBar コンポーネントを実装して..."
+  "user_prompt_text": "Implement the FooBar component..."
 }
 
 // post_tool
@@ -692,7 +694,7 @@ event_type 別の追加 field：
   "tool_name": "Read",
   "tool_response": "...",
   "result_bytes": 12345,
-  "result_excerpt": "..."  // config で先頭 N 文字
+  "result_excerpt": "..."  // leading N chars, configurable
 }
 
 // agent_response (Stop)
@@ -731,7 +733,7 @@ event_type 別の追加 field：
 
 ## 5.3 `index.json`
 
-検索高速化のための index：
+An index for faster search:
 
 ```json
 {
@@ -749,7 +751,7 @@ event_type 別の追加 field：
     "Bash": [11, 15]
   },
   "text_inverted_index": {
-    // 簡易な keyword → event_idx mapping (Phase A は word level、Phase B で n-gram)
+    // Simple keyword → event_idx mapping (Phase A is word-level, n-gram in Phase B)
     "FooBar": [1, 12, 25],
     "DI": [17, 25]
   }
@@ -758,9 +760,9 @@ event_type 別の追加 field：
 
 ---
 
-# 6. 設定（config）仕様
+# 6. Config spec
 
-`${CLAUDE_PLUGIN_DATA}/config.toml`：
+`${CLAUDE_PLUGIN_DATA}/config.toml`:
 
 ```toml
 [plugin]
@@ -768,41 +770,41 @@ enabled = true
 log_level = "info"
 
 [capture]
-# user_prompt の捕捉
+# user_prompt capture
 user_prompt = "full"        # full | excerpt | off
 
-# tool_input の捕捉粒度
+# tool_input capture granularity
 tool_input = "full"          # full | excerpt | paths_only | off
 
-# tool_response の捕捉粒度
+# tool_response capture granularity
 tool_response = "excerpt"    # full | excerpt | size_only | off
-tool_response_excerpt_chars = 2000  # excerpt 時の先頭文字数
+tool_response_excerpt_chars = 2000  # leading N chars on excerpt
 
-# agent_response の捕捉
+# agent_response capture
 agent_response = "full"      # full | excerpt | off
 
-# session_end の自動 GC
+# auto GC at session_end
 auto_gc_on_session_end = true
 
 [retention]
-# session JSONL の保持期間
-sessions_full_days = 30      # full content 保持
-sessions_metadata_days = 365 # metadata のみ保持
-auto_archive_format = "gzip" # 30 日超は gz 圧縮
+# Retention period of session JSONL
+sessions_full_days = 30      # retain full content
+sessions_metadata_days = 365 # retain metadata only
+auto_archive_format = "gzip" # gzip when older than 30 days
 
 [redaction]
 enabled = true
 patterns = [
-  # default: 一般的な secret pattern
+  # default: common secret patterns
   '(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*["\']?[\w\-]{16,}["\']?',
   'sk-[a-zA-Z0-9]{40,}',
   'ghp_[a-zA-Z0-9]{36,}',
-  # user 追加
+  # User-added
 ]
 replacement = "[REDACTED]"
 
 [anomaly_hints]
-# replay 時の hint 表示（anomaly hint patterns、§11 Phase B-8 で実装）
+# Hint display at replay time (anomaly hint patterns, implemented in §11 Phase B-8)
 enabled = true
 show_repeated_read = true
 repeated_read_threshold = 3
@@ -815,7 +817,7 @@ routing_paths = ["CLAUDE.md", "AGENTS.md"]
 enabled = true
 
 [engine.codex]
-enabled = false  # Phase C で enable
+enabled = false  # enable in Phase C
 ```
 
 ---
@@ -824,10 +826,10 @@ enabled = false  # Phase C で enable
 
 ## 7.1 Layer 1: Capture (hooks)
 
-5 つの hook handler が各 event を normalize して `events.jsonl` に append：
+The 5 hook handlers normalize each event and append to `events.jsonl`:
 
 ```python
-# hooks/user_prompt_submit.py の擬似コード
+# Pseudo-code for hooks/user_prompt_submit.py
 import json, sys, os
 from adapters.claude_code import normalize_event
 from core.recorder import append_event
@@ -851,11 +853,11 @@ if __name__ == "__main__":
     main()
 ```
 
-その他 hook も同じ形（recorder.append_event に渡すだけ）。
+Other hooks have the same shape (just pass to recorder.append_event).
 
 ## 7.2 Layer 2: Storage
 
-`core/recorder.py`：
+`core/recorder.py`:
 
 ```python
 import json
@@ -881,11 +883,11 @@ def append_event(normalized_event: dict) -> None:
     update_metadata(session_dir, redacted)
 ```
 
-## 7.3 Layer 3: Query interface (CLI 主機能)
+## 7.3 Layer 3: Query interface (CLI main features)
 
-各 query は `events.jsonl` を load し、index で検索を高速化、結果を human-readable 形式で出力。
+Each query loads `events.jsonl`, accelerates search via the index, and outputs results in a human-readable form.
 
-### 7.3.1 `replay` の擬似コード
+### 7.3.1 Pseudo-code for `replay`
 
 ```python
 # query/replay.py
@@ -918,14 +920,14 @@ def replay(session_id: str, options: dict) -> None:
                 print(f"          ⚠️ {hint}")
 ```
 
-### 7.3.2 `trace` の擬似コード
+### 7.3.2 Pseudo-code for `trace`
 
 ```python
 # query/trace.py
 def trace(session_id: str, output_excerpt: str) -> None:
     events = load_events(session_id)
     
-    # output_excerpt が初めて出現した agent_response を特定
+    # Identify the agent_response where output_excerpt first appeared
     first_mention = find_first_event(events, lambda e: 
         e["event_type"] == "agent_response" and output_excerpt in e["agent_response_text"]
     )
@@ -934,21 +936,21 @@ def trace(session_id: str, output_excerpt: str) -> None:
         print(f"Not found: '{output_excerpt}' in any agent response")
         return
     
-    # その時点までに何が起きたかを表示
+    # Display what happened up to that point
     prior_events = events[:events.index(first_mention)]
     
     print(f"Output '{output_excerpt}' first appeared at {first_mention['ts']}")
     print()
     print("Causal trail (prior events):")
     
-    # 直前の user_prompt
+    # The immediately preceding user_prompt
     last_user_prompt = find_last_event(prior_events, lambda e: e["event_type"] == "user_prompt")
     if last_user_prompt:
         mentions = output_excerpt in last_user_prompt.get("user_prompt_text", "")
         print(f"  - user prompt: {last_user_prompt['ts']}: "
               f"{'✓ mentioned' if mentions else '✗ not mentioned'}")
     
-    # 読了 file で output_excerpt を含むものを探す
+    # Look for read files containing output_excerpt
     print("  - files read prior to this output:")
     for pe in prior_events:
         if pe["event_type"] == "post_tool" and pe["tool_name"] == "Read":
@@ -958,7 +960,7 @@ def trace(session_id: str, output_excerpt: str) -> None:
             path = pe.get("paths", [""])[0]
             print(f"      [{pe['ts']}] {path}: {indicator}")
     
-    # hallucination 候補判定
+    # Hallucination candidate decision
     has_source = any(
         pe["event_type"] == "post_tool" and 
         output_excerpt in (pe.get("tool_response", "") or pe.get("result_excerpt", ""))
@@ -972,7 +974,7 @@ def trace(session_id: str, output_excerpt: str) -> None:
               f"user prompts or tool results visible to agent")
 ```
 
-### 7.3.3 `why` の擬似コード
+### 7.3.3 Pseudo-code for `why`
 
 ```python
 # query/why.py
@@ -992,17 +994,17 @@ def why(session_id: str, event_descriptor: str) -> None:
     print()
     print("What came immediately before:")
     
-    # 直前 3 event を表示
+    # Show the 3 immediately preceding events
     for pe in prior[-3:]:
         print(f"  - [{pe['ts']}] {format_event_brief(pe)}")
     
-    # 直前の user_prompt
+    # The immediately preceding user_prompt
     last_prompt = find_last_event(prior, lambda e: e["event_type"] == "user_prompt")
     print()
     print("Last user prompt before this event:")
     print(f"  [{last_prompt['ts']}] {last_prompt.get('user_prompt_text', '')[:200]}")
     
-    # この path / target を含む直前 Glob 結果があれば
+    # If there's a preceding Glob result containing this path / target
     target_path = (target.get("paths") or [""])[0]
     glob_origin = find_glob_that_returned(prior, target_path)
     if glob_origin:
@@ -1012,7 +1014,7 @@ def why(session_id: str, event_descriptor: str) -> None:
         print(f"   (agent picked this path from Glob results, no explicit user mention)")
 ```
 
-### 7.3.4 `diff` の擬似コード
+### 7.3.4 Pseudo-code for `diff`
 
 ```python
 # query/diff.py
@@ -1022,13 +1024,13 @@ def diff(session_id: str) -> None:
     user_prompts = [e for e in events if e["event_type"] == "user_prompt"]
     tool_calls = [e for e in events if e["event_type"] == "pre_tool"]
     
-    # user prompt に含まれた reference (file path / 固有名詞) を抽出
+    # Extract references (file paths / proper nouns) included in user prompts
     user_mentions = set()
     for up in user_prompts:
         text = up.get("user_prompt_text", "")
         user_mentions.update(extract_references(text))
     
-    # tool call で agent が触った path を抽出
+    # Extract paths the agent touched in tool calls
     agent_touches = set()
     for tc in tool_calls:
         agent_touches.update(tc.get("paths", []))
@@ -1051,7 +1053,7 @@ def diff(session_id: str) -> None:
           "but each should be reviewable.)")
 ```
 
-### 7.3.5 `state-at` の擬似コード
+### 7.3.5 Pseudo-code for `state-at`
 
 ```python
 # query/state_at.py
@@ -1060,7 +1062,7 @@ def state_at(session_id: str, time_str: str) -> None:
     events = load_events(session_id)
     events_until = [e for e in events if parse_time(e["ts"]) <= target_ts]
     
-    # state 構築
+    # Build state
     files_read = {}
     total_bytes = 0
     user_prompts = []
@@ -1085,7 +1087,7 @@ def state_at(session_id: str, time_str: str) -> None:
         print(f"  {count}x  {path}{marker}")
 ```
 
-### 7.3.6 `grep` の擬似コード
+### 7.3.6 Pseudo-code for `grep`
 
 ```python
 # query/grep.py
@@ -1095,7 +1097,7 @@ def grep(session_id: str, pattern: str, ignore_case: bool = False) -> None:
     regex = re.compile(pattern, flags)
     
     for e in events:
-        # event 内の文字列 fields を全部検索
+        # Search all string fields in the event
         searchable = collect_searchable_text(e)
         for field_name, text in searchable.items():
             if regex.search(text):
@@ -1103,14 +1105,14 @@ def grep(session_id: str, pattern: str, ignore_case: bool = False) -> None:
                       f"{highlight_match(text, regex)[:200]}")
 ```
 
-### 7.3.7 `causal-graph` の擬似コード
+### 7.3.7 Pseudo-code for `causal-graph`
 
 ```python
 # query/causal_graph.py
 def causal_graph(session_id: str, output_path: str) -> None:
     events = load_events(session_id)
     
-    # mermaid graph 生成
+    # Generate a mermaid graph
     lines = ["```mermaid", "graph TD"]
     
     for i, e in enumerate(events):
@@ -1118,11 +1120,11 @@ def causal_graph(session_id: str, output_path: str) -> None:
         label = format_event_short(e)
         lines.append(f"  {node_id}[\"{label}\"]")
     
-    # 因果リンク (各 event はその直前 event に接続、特定パターンは別経路)
+    # Causal links (each event is connected to its immediate predecessor; specific patterns get extra edges)
     for i in range(1, len(events)):
         lines.append(f"  E{i-1} --> E{i}")
         
-        # 直前 Glob の結果から後の Read への link
+        # Link from a preceding Glob result to a later Read
         cur = events[i]
         if cur["event_type"] == "pre_tool" and cur.get("tool_name") == "Read":
             target_path = (cur.get("paths") or [""])[0]
@@ -1134,21 +1136,21 @@ def causal_graph(session_id: str, output_path: str) -> None:
     Path(output_path).write_text("\n".join(lines))
 ```
 
-### 7.3.8 `mentioned-but-not-read` の擬似コード
+### 7.3.8 Pseudo-code for `mentioned-but-not-read`
 
 ```python
 # query/mentioned_but_not_read.py
 def mentioned_but_not_read(session_id: str) -> None:
-    """agent response に含まれた言及で、read 履歴にも user prompt にも source が見当たらないものを抽出"""
+    """Extract mentions in the agent response whose source is found neither in the read history nor in user prompts"""
     events = load_events(session_id)
     
-    # agent response から固有名詞・file path 候補を抽出
+    # Extract proper-noun / file-path candidates from agent responses
     candidates = set()
     for e in events:
         if e["event_type"] == "agent_response":
             candidates.update(extract_references(e.get("agent_response_text", "")))
     
-    # source が存在しない候補を抽出
+    # Extract candidates without a source
     suspicious = []
     for candidate in candidates:
         has_user_source = any(
@@ -1172,75 +1174,75 @@ def mentioned_but_not_read(session_id: str) -> None:
 ```python
 # query/export.py
 def export_trace(session_id: str, output_path: str, format: str = "markdown") -> None:
-    # replay + causal graph + diff + mentioned-but-not-read を統合した forensic report
+    # A forensic report combining replay + causal graph + diff + mentioned-but-not-read
     pass
 ```
 
 ---
 
-# 8. CLI コマンド一覧（user-facing surface）
+# 8. CLI command list (user-facing surface)
 
-## 8.1 主要コマンド
+## 8.1 Main commands
 
-| コマンド | 機能 | 出力 |
+| Command | Function | Output |
 |---|---|---|
-| `replay --session <id>` | session の完全 timeline を表示 | text、event 順 |
-| `trace --session <id> --output <text>` | 出力 text の初出を逆引き、prior causal trail を表示 | text、causal trail |
-| `why --session <id> --event <descriptor>` | 特定 event がなぜ起きたかを query | text、直前 events |
-| `diff --session <id>` | user mention vs agent action の差分 | text、表形式 |
-| `state-at --session <id> --time <ts>` | 指定時点での session state snapshot | text |
-| `grep --session <id> --pattern <regex>` | session 内全文検索 | text、match list |
-| `causal-graph --session <id> [--output <path>]` | mermaid 因果図生成 | markdown、mermaid |
-| `mentioned-but-not-read --session <id>` | hallucination 候補抽出 | text |
+| `replay --session <id>` | Display the full timeline of a session | text, in event order |
+| `trace --session <id> --output <text>` | Reverse-lookup the first occurrence of an output text and show the prior causal trail | text, causal trail |
+| `why --session <id> --event <descriptor>` | Query why a specific event happened | text, preceding events |
+| `diff --session <id>` | Diff between user mentions and agent actions | text, tabular |
+| `state-at --session <id> --time <ts>` | Snapshot of session state at a specified time | text |
+| `grep --session <id> --pattern <regex>` | Full-text search within a session | text, match list |
+| `causal-graph --session <id> [--output <path>]` | Generate a mermaid causal graph | markdown, mermaid |
+| `mentioned-but-not-read --session <id>` | Extract hallucination candidates | text |
 
-## 8.2 補助コマンド
+## 8.2 Auxiliary commands
 
-| コマンド | 機能 |
+| Command | Function |
 |---|---|
-| `list [--last <N>]` | 最近の session 一覧 |
-| `latest` | 最新 session の id を出力 |
-| `status` | plugin 全体の status |
-| `export-trace --session <id> --output <path>` | forensic report 一括 export |
-| `gc` | 期限切れ session の手動 GC |
-| `config` | 現在の config 表示 |
-| `tag --session <id> --tag <name>` | session に手動 tag を付ける（後で見つけやすく）|
+| `list [--last <N>]` | List recent sessions |
+| `latest` | Output the latest session's id |
+| `status` | Plugin-wide status |
+| `export-trace --session <id> --output <path>` | Bulk-export a forensic report |
+| `gc` | Manual GC of expired sessions |
+| `config` | Show current config |
+| `tag --session <id> --tag <name>` | Manually tag a session (for easier later lookup) |
 
-## 8.3 セッション指定の便利記法
+## 8.3 Convenient notations for specifying a session
 
-すべてのコマンドで `--session` は以下を accept：
+In every command, `--session` accepts:
 
-- `latest` — 最新 session
-- `<session_id>` — 完全な ID
-- `<short_id>` — 先頭 8 文字 prefix
-- `<tag>` — `tag` コマンドで付けた名前
-- `latest-N` — N 個前の session
-- ISO date `2026-05-14` — その日の session（複数あれば最新）
+- `latest` — the latest session
+- `<session_id>` — full ID
+- `<short_id>` — first 8-char prefix
+- `<tag>` — the name set via the `tag` command
+- `latest-N` — N sessions ago
+- ISO date `2026-05-14` — that day's session (the latest if multiple)
 
-## 8.4 出力 format
+## 8.4 Output format
 
 ```bash
 $ agent-output-tracer replay --session latest --format text       # default
-$ agent-output-tracer replay --session latest --format json       # 機械処理用
-$ agent-output-tracer replay --session latest --format markdown   # report 用
+$ agent-output-tracer replay --session latest --format json       # for machine processing
+$ agent-output-tracer replay --session latest --format markdown   # for reports
 ```
 
 ---
 
-# 9. 安全設計
+# 9. Safety design
 
 ## 9.1 Failure tolerance
 
-すべての hook で：
+For all hooks:
 
 ```python
 def main():
     try:
         event = json.load(sys.stdin)
     except Exception:
-        sys.exit(0)  # 例外時は silent exit、agent 動作を絶対止めない
+        sys.exit(0)  # On exception, silent exit; never block agent behavior
 
     try:
-        # 実処理
+        # Real handling
         ...
     except Exception:
         pass
@@ -1248,28 +1250,28 @@ def main():
     sys.exit(0)
 ```
 
-## 9.2 Host repo 非汚染
+## 9.2 No host repo contamination
 
-| 制約 | 実装 |
+| Constraint | Implementation |
 |---|---|
-| Write 先制限 | `${CLAUDE_PLUGIN_DATA}/sessions/` 配下のみ、code review で enforce |
-| Host repo path への write 禁止 | unit test で assertion |
-| Host repo content の read | observation のみ、再 open 禁止 |
+| Restrict write target | Only under `${CLAUDE_PLUGIN_DATA}/sessions/`, enforced in code review |
+| Forbid writes to host repo paths | Asserted in unit tests |
+| Reading host repo content | Observation only, re-open forbidden |
 
 ## 9.3 Privacy / Redaction
 
-`redactor.py` は以下を自動 mask：
+`redactor.py` automatically masks:
 
-- API key pattern: `sk-...`, `ghp_...`, `eyJh...` JWT 等
-- Password / token / secret を含む key=value
-- user 追加 pattern（config に regex 追加）
+- API key patterns: `sk-...`, `ghp_...`, `eyJh...` JWT, etc.
+- key=value pairs containing password / token / secret
+- User-added patterns (add regex in config)
 
-redaction は `events.jsonl` 書き込み前に実施。元データは plugin 内にも残さない。
+Redaction is applied before writing to `events.jsonl`. The raw data is not retained inside the plugin either.
 
 ## 9.4 Retention / Auto GC
 
 ```python
-# SessionEnd hook で trigger される（または `gc` コマンドで手動）
+# Triggered by SessionEnd hook (or manually via the `gc` command)
 def gc():
     cutoff_archive = now - 30 days
     cutoff_delete = now - 365 days
@@ -1277,10 +1279,10 @@ def gc():
     for session_dir in sessions_dir.iterdir():
         meta = load_metadata(session_dir)
         if meta["ts_end"] < cutoff_archive:
-            # full content (tool_response 等) を strip、metadata + index は残す
+            # Strip full content (tool_response etc.), keep metadata + index
             strip_content(session_dir)
         if meta["ts_end"] < cutoff_delete:
-            # 完全削除
+            # Fully delete
             shutil.rmtree(session_dir)
 ```
 
@@ -1288,33 +1290,33 @@ def gc():
 
 | hook | budget |
 |---|---|
-| UserPromptSubmit | < 5ms（text append のみ）|
-| PreToolUse | < 10ms（event append + index update）|
-| PostToolUse | < 15ms（excerpt 抽出 + redaction + append）|
-| Stop | < 10ms（agent response append）|
-| SessionEnd | < 200ms（metadata 確定 + GC trigger）|
+| UserPromptSubmit | < 5ms (just a text append) |
+| PreToolUse | < 10ms (event append + index update) |
+| PostToolUse | < 15ms (excerpt extraction + redaction + append) |
+| Stop | < 10ms (agent response append) |
+| SessionEnd | < 200ms (metadata finalize + GC trigger) |
 
-実装時は単体テストで実測、超過したら async 化検討。
+Measure with unit tests during implementation; if exceeded, consider going async.
 
-## 9.6 Plugin 破損時の影響
+## 9.6 Impact when the plugin is broken
 
-| 状況 | 影響 |
+| Situation | Impact |
 |---|---|
-| hook 例外 | silent fail、agent 動作影響なし |
-| hook script 消失 | Claude Code が warning、agent 動作継続（hook 不在扱い）|
-| data dir 破損 | 次 session 起動時に新規作成、過去 session log は失われるが新規 session 継続 |
-| config.toml 壊れた | default 設定で fallback |
-| storage 容量逼迫 | best-effort write で silent skip（agent 影響なし）、`status` で警告 |
+| Hook exception | Silent fail, no impact on agent behavior |
+| Hook script missing | Claude Code emits a warning, agent continues (treated as hook absent) |
+| Data dir corrupted | Re-created on next session start; past session logs lost, new sessions continue |
+| Broken config.toml | Fall back to default config |
+| Storage capacity tight | Best-effort write silently skips (no agent impact), `status` shows a warning |
 
-致命時の最終手段: `claude plugin disable agent-output-tracer` で即無効化。
+Last resort on fatal failure: `claude plugin disable agent-output-tracer` to disable immediately.
 
 ---
 
-# 10. インストールとアンインストール
+# 10. Install and uninstall
 
-## 10.1 Claude Code 向け
+## 10.1 For Claude Code
 
-### Local 開発 install
+### Local development install
 
 ```bash
 $ git clone <repo-url> ~/work/agent-output-tracer
@@ -1322,10 +1324,10 @@ $ cd ~/work/agent-output-tracer
 $ python3 -m venv .venv && source .venv/bin/activate
 $ pip install -e .
 
-# 永続 install
+# Persistent install
 $ claude plugin install ~/work/agent-output-tracer
 
-# または local dev (hot reload 用)
+# Or local dev (for hot reload)
 $ claude --plugin-dir ~/work/agent-output-tracer
 ```
 
@@ -1335,65 +1337,65 @@ $ claude --plugin-dir ~/work/agent-output-tracer
 $ claude plugin install agent-output-tracer
 ```
 
-## 10.2 Codex 向け（Phase C、公式 plugin 機構を使用）
+## 10.2 For Codex (Phase C, using official plugin mechanism)
 
-### Local 開発 install
+### Local development install
 
 ```bash
-# 1. plugin repo を clone
+# 1. Clone the plugin repo
 $ git clone <repo-url> ~/work/agent-output-tracer
 
-# 2. host repo の .codex/config.toml で feature flag を有効化（必須）
-# または ~/.codex/config.toml（user level）
+# 2. Enable the feature flag in the host repo's .codex/config.toml (required)
+#    or in ~/.codex/config.toml (user level)
 $ cat >> .codex/config.toml <<'EOF'
 [features]
-codex_hooks = true   # 0.129+ は hooks = true でも可（alias）
+codex_hooks = true   # In 0.129+, hooks = true is also acceptable (alias)
 EOF
 
-# 3. local marketplace 経由で install
+# 3. Install via local marketplace
 $ codex plugin marketplace add ~/work/agent-output-tracer
 
-# Plugin は ~/.codex/plugins/cache/$MARKETPLACE_NAME/$PLUGIN_NAME/local/ に install される
+# The plugin is installed into ~/.codex/plugins/cache/$MARKETPLACE_NAME/$PLUGIN_NAME/local/
 ```
 
-### Marketplace install（将来）
+### Marketplace install (future)
 
 ```bash
 $ codex plugin marketplace add owner/agent-output-tracer
 ```
 
-### Plugin 構造の Codex 用追加
+### Codex-specific additions to the plugin structure
 
-`.codex-plugin/plugin.json` を `.claude-plugin/plugin.json` と同じ内容で配置（Claude Code と Codex の dual-distribution 構成）:
+Place `.codex-plugin/plugin.json` with the same content as `.claude-plugin/plugin.json` (Claude Code + Codex dual-distribution layout):
 
 ```
 ~/work/agent-output-tracer/
 ├── .claude-plugin/
 │   └── plugin.json
 ├── .codex-plugin/
-│   └── plugin.json           ← Claude 版と同形、name/version/hooks field 共通
-├── hooks/hooks.json          ← 両 engine 共通定義（PostToolUse 等は engine 側で対応 event のみ発火）
+│   └── plugin.json           ← Same form as the Claude version, common name/version/hooks fields
+├── hooks/hooks.json          ← Common definition for both engines (events like PostToolUse fire only on the engine side that supports them)
 ├── adapters/
 │   ├── claude_code.py
-│   └── codex.py              ← Phase C 実装
+│   └── codex.py              ← Implemented in Phase C
 └── ...
 ```
 
-### Trusted project 制約
+### Trusted project constraint
 
 > "Project-local hooks load only when the project `.codex/` layer is trusted."
 
-→ user level (`~/.codex/`) install を推奨。project level も可だが、project trust 設定が必要。
+→ User-level (`~/.codex/`) install is recommended. Project-level is also possible but requires project trust configuration.
 
 ## 10.3 Disable / uninstall
 
 ```bash
-$ claude plugin disable agent-output-tracer          # 一時無効
-$ claude plugin uninstall agent-output-tracer --keep-data  # data 保持 uninstall
-$ claude plugin uninstall agent-output-tracer        # 完全削除
+$ claude plugin disable agent-output-tracer          # Temporary disable
+$ claude plugin uninstall agent-output-tracer --keep-data  # Uninstall keeping data
+$ claude plugin uninstall agent-output-tracer        # Full removal
 ```
 
-## 10.4 動作確認
+## 10.4 Operation check
 
 ```bash
 $ agent-output-tracer status
@@ -1408,101 +1410,101 @@ Latest session: 2026-05-14-pm3 (started 30 min ago)
 
 ---
 
-# 11. 実装計画（Phase A / B / C）
+# 11. Implementation plan (Phase A / B / C)
 
-## Phase A: Claude Code 基本 forensic（最小動作）
+## Phase A: Claude Code basic forensics (minimal working)
 
-| Sub-phase | 内容 | 成果物 |
+| Sub-phase | Content | Deliverable |
 |---|---|---|
-| A-0 | repo 初期化、Python 3.11+ skeleton、`pyproject.toml`、CI workflow | git repo 作成 |
-| A-1 | `plugin.json` + `hooks/hooks.json`、空 hook script で plugin install できることを verify | install / hook 配線確認 |
-| A-2 | `adapters/claude_code.py` + `core/normalizer.py` で normalized_event 確立、unit test | normalize TDD pass |
-| A-3 | `core/recorder.py` で events.jsonl append、`hooks/pre_tool_use.py` 実装 | session JSONL 生成 |
-| A-4 | `hooks/user_prompt_submit.py` / `stop.py` / `session_end.py` 追加 | user prompt + agent response 捕捉 |
-| A-5 | `core/redactor.py` で secret pattern mask | redaction 動作 |
-| A-6 | `query/replay.py` 実装、`agent-output-tracer replay` で session 時系列表示 | **主機能 1** |
-| A-7 | `query/list.py` + `query/latest.py` + session id resolution（latest / short_id / tag）| session navigation |
-| A-8 | `query/grep.py` 実装、全文検索 | **主機能 2** |
-| A-9 | `query/state_at.py` 実装、time T の state snapshot | 主機能 3 |
-| A-10 | integration test、performance 実測、README v0.1.0 | reproducible install + 基本 forensic |
+| A-0 | Initialize repo, Python 3.11+ skeleton, `pyproject.toml`, CI workflow | git repo created |
+| A-1 | `plugin.json` + `hooks/hooks.json`, verify plugin installs with empty hook scripts | install / hook wiring confirmed |
+| A-2 | Establish normalized_event in `adapters/claude_code.py` + `core/normalizer.py`, unit tests | normalize TDD pass |
+| A-3 | Implement events.jsonl append in `core/recorder.py`, implement `hooks/pre_tool_use.py` | session JSONL generated |
+| A-4 | Add `hooks/user_prompt_submit.py` / `stop.py` / `session_end.py` | user prompt + agent response captured |
+| A-5 | Secret pattern mask in `core/redactor.py` | redaction works |
+| A-6 | Implement `query/replay.py`, `agent-output-tracer replay` shows session timeline | **Main feature 1** |
+| A-7 | `query/list.py` + `query/latest.py` + session id resolution (latest / short_id / tag) | session navigation |
+| A-8 | Implement `query/grep.py`, full-text search | **Main feature 2** |
+| A-9 | Implement `query/state_at.py`, state snapshot at time T | Main feature 3 |
+| A-10 | Integration tests, performance measurement, README v0.1.0 | reproducible install + basic forensics |
 
-期間目安: 3-4 週間
+Time estimate: 3-4 weeks
 
-## Phase B: 高度 forensic query
+## Phase B: Advanced forensic queries
 
-| Sub-phase | 内容 |
+| Sub-phase | Content |
 |---|---|
-| B-1 | `core/indexer.py` で per-session search index 構築、grep を高速化 |
-| B-2 | `query/trace.py` 実装、output 逆引き + causal trail |
-| B-3 | `query/why.py` 実装、event の理由 query |
-| B-4 | `query/diff.py` 実装、user vs agent action の差分 |
-| B-5 | `query/mentioned_but_not_read.py` 実装、hallucination 候補抽出 |
-| B-6 | `query/causal_graph.py` 実装、mermaid 因果図生成 |
-| B-7 | `query/export.py` で forensic report 一括 export |
-| B-8 | `analyzer/anomaly_hints.py` 実装、replay 時の anomaly hint 表示。検知対象 pattern は以下（host repo 構造に依存しない汎用形、閾値は config 駆動）:<br>(a) 同一 file の session 内 read 回数 ≥ N（default 3）<br>(b) routing config（CLAUDE.md / AGENTS.md 等の config_paths 設定）の session 内 read ≥ N（default 3）<br>(c) session の tool_calls_total が直近 30 日 90 percentile 超（long-session outlier）<br>(d) wrapper 系 path と core 系 path の連続 read（time delta < 60s、config drift 兆候）<br>(e) namespace boundary 跨ぎ read（`boundary_paths` 設定の異なる prefix を同 session で複数 read）<br>(f) protected path への Bash 経由 read（`cat`/`less`/`head` 等が protected_globs と組合せ）<br>(g) same-domain skill 並列発火（`skill_groups` 設定経由）|
-| B-9 | 自動 GC（30 日 / 365 日）+ archive 機能 |
+| B-1 | Build per-session search index in `core/indexer.py`, accelerate grep |
+| B-2 | Implement `query/trace.py`, output reverse-lookup + causal trail |
+| B-3 | Implement `query/why.py`, query an event's reason |
+| B-4 | Implement `query/diff.py`, diff between user and agent actions |
+| B-5 | Implement `query/mentioned_but_not_read.py`, extract hallucination candidates |
+| B-6 | Implement `query/causal_graph.py`, generate mermaid causal graph |
+| B-7 | `query/export.py` for bulk forensic report export |
+| B-8 | Implement `analyzer/anomaly_hints.py`, anomaly hint display at replay time. Detection patterns (generic forms not dependent on host repo structure, thresholds config-driven):<br>(a) Same file read in a single session ≥ N times (default 3)<br>(b) Routing config (CLAUDE.md / AGENTS.md, etc., set via config_paths) read in a single session ≥ N times (default 3)<br>(c) `tool_calls_total` of a session exceeds the 90th percentile of the last 30 days (long-session outlier)<br>(d) Sequential reads of wrapper-class and core-class paths (time delta < 60s, config drift symptom)<br>(e) Cross-namespace boundary reads (multiple different prefixes of `boundary_paths` setting read in the same session)<br>(f) Read of a protected path via Bash (combination of `cat`/`less`/`head` etc. with protected_globs)<br>(g) Parallel firing of same-domain skills (via `skill_groups` setting) |
+| B-9 | Auto GC (30 days / 365 days) + archive feature |
 
-期間目安: 3-4 週間
+Time estimate: 3-4 weeks
 
-## Phase C: Codex 対応（spec 確定済、実装段階）
+## Phase C: Codex support (spec finalized, implementation stage)
 
-**C-0 は完了**（2026-05-14〜15、general-purpose subagent 経由で公式 docs verify 済、§3.2 に反映）
+**C-0 is complete** (2026-05-14 to 15, official docs verified via general-purpose subagent, reflected in §3.2)
 
-| Sub-phase | 内容 |
+| Sub-phase | Content |
 |---|---|
-| ~~C-0~~ | ~~Codex 公式 hook docs verify~~ → **完了**、結果は §3.2 |
-| C-1 | `adapters/codex.py` 実装：8 hook event の normalize（SessionStart / PreToolUse / PostToolUse / UserPromptSubmit / Stop / PermissionRequest / PreCompact / PostCompact） |
-| C-2 | `.codex-plugin/plugin.json` 配置、`hooks/hooks.json` を両 engine 共通形式に調整 |
-| C-3 | Codex `[features] codex_hooks = true` 必須 + `codex plugin marketplace add` 手順を `docs/INSTALL.md` に追加 |
-| C-4 | Codex native env var の実機 verify（`${CLAUDE_PLUGIN_ROOT}` 相当の解決方法）、必要なら adapter で path 計算 fallback |
-| C-5 | `SessionEnd` 不在対応：Stop event + session_id グルーピング + idle timeout で擬似 session 終了検知 |
-| C-6 | PostToolUse の Codex 制限（Bash / apply_patch / MCP のみ発火）への対応：機能限定の明示 |
-| C-7 | Codex integration test fixtures（公式 schema directory から取得した sample event を使用）|
-| C-8 | 両 engine 並走時の session_id 整合確認 |
-| C-9 | `turn_id` field の活用検討（Codex 固有 turn 識別子、turn-level forensic に有用）|
-| C-10 | Codex version 要件明示（>= 0.128 推奨、compaction event 使うなら >= 0.129）|
+| ~~C-0~~ | ~~Verify Codex official hook docs~~ → **Complete**, result in §3.2 |
+| C-1 | Implement `adapters/codex.py`: normalize the 8 hook events (SessionStart / PreToolUse / PostToolUse / UserPromptSubmit / Stop / PermissionRequest / PreCompact / PostCompact) |
+| C-2 | Place `.codex-plugin/plugin.json`, adjust `hooks/hooks.json` to a form shared between both engines |
+| C-3 | Add Codex `[features] codex_hooks = true` requirement + `codex plugin marketplace add` procedure to `docs/INSTALL.md` |
+| C-4 | Real-environment verify of the Codex native env var (resolution method for the `${CLAUDE_PLUGIN_ROOT}` equivalent); fall back to path computation in the adapter if needed |
+| C-5 | Handling for `SessionEnd` absence: Stop event + session_id grouping + idle timeout for pseudo session-end detection |
+| C-6 | Handle the Codex PostToolUse limitation (fires only for Bash / apply_patch / MCP): explicitly note the limited functionality |
+| C-7 | Codex integration test fixtures (using sample events fetched from the official schema directory) |
+| C-8 | Confirm session_id consistency when both engines run side by side |
+| C-9 | Consider using the `turn_id` field (Codex-specific turn identifier, useful for turn-level forensics) |
+| C-10 | Make the Codex version requirement explicit (>= 0.128 recommended, >= 0.129 if you use compaction events) |
 
-期間目安: 2-3 週間（C-0 短縮済）
+Time estimate: 2-3 weeks (C-0 shortened)
 
-## Phase D: 発展機能（optional）
+## Phase D: Advanced features (optional)
 
-- web UI viewer（plugin data dir を browse）
-- AI agent integration（query 結果を別 LLM に渡して summary）
-- pattern 学習 / user 行動 fingerprint
-- marketplace 公開準備
+- Web UI viewer (browse the plugin data dir)
+- AI agent integration (pass query results to another LLM for summarization)
+- Pattern learning / user behavior fingerprinting
+- Marketplace publication preparation
 
 ---
 
-# 12. テスト戦略
+# 12. Test strategy
 
-## 12.1 単体テスト
+## 12.1 Unit tests
 
-| 対象 | カバー |
+| Target | Coverage |
 |---|---|
-| `core/normalizer.py` | engine 別 event → normalized、edge case |
-| `core/recorder.py` | append / 連続書込 / 失敗時 silent |
-| `core/indexer.py` | index 整合性、検索精度 |
-| `core/redactor.py` | secret pattern mask、誤検出抑制 |
-| `query/replay.py` | event 順序、format 出力 |
-| `query/trace.py` | 出力初出特定、causal trail 構築 |
-| `query/diff.py` | mention / touch 集合演算 |
-| `query/grep.py` | regex match、case sensitivity |
-| `analyzer/anomaly_hints.py` | hint 閾値 |
+| `core/normalizer.py` | Per-engine event → normalized, edge cases |
+| `core/recorder.py` | Append / consecutive writes / silent on failure |
+| `core/indexer.py` | Index consistency, search accuracy |
+| `core/redactor.py` | Secret pattern masking, false-positive suppression |
+| `query/replay.py` | Event ordering, format output |
+| `query/trace.py` | First-occurrence identification, causal trail construction |
+| `query/diff.py` | Mention / touch set operations |
+| `query/grep.py` | Regex match, case sensitivity |
+| `analyzer/anomaly_hints.py` | Hint thresholds |
 
-## 12.2 統合テスト
+## 12.2 Integration tests
 
-| シナリオ | 検証 |
+| Scenario | Verification |
 |---|---|
-| Claude Code event 流入 → events.jsonl 完成 | end-to-end |
-| user prompt + tool calls + agent response の完全 session | replay で全 event 再現 |
-| hallucination scenario（read source なしの言及）| `mentioned-but-not-read` 検出 |
-| cross-namespace bleed | anomaly hint 表示 |
-| 1000 events / session | performance budget 内 |
-| Hook 例外発生 | agent 動作影響なし |
-| Plugin disable 時 | hook fire しない |
-| Codex event 流入（Phase C）| Claude Code と同等の captured |
+| Claude Code event ingestion → events.jsonl produced | End-to-end |
+| Full session of user prompts + tool calls + agent responses | All events reproduced in replay |
+| Hallucination scenario (mention without a read source) | Detected by `mentioned-but-not-read` |
+| Cross-namespace bleed | Anomaly hint shown |
+| 1000 events / session | Within performance budget |
+| Hook exception raised | No impact on agent behavior |
+| When plugin is disabled | Hook does not fire |
+| Codex event ingestion (Phase C) | Same level of capture as Claude Code |
 
-## 12.3 性能テスト
+## 12.3 Performance tests
 
 ```python
 def test_capture_overhead():
@@ -1510,109 +1512,109 @@ def test_capture_overhead():
     assert avg_ms < 15  # per-call budget
 ```
 
-## 12.4 安全テスト
+## 12.4 Safety tests
 
-- `${CLAUDE_PLUGIN_DATA}` 外への write 試行 → fail
-- redaction 失敗時の動作（secret が log に残らないか）
-- 巨大 event JSON (10MB) → skip
-- 故意の壊れた config.toml → default fallback
+- Write attempt outside `${CLAUDE_PLUGIN_DATA}` → fail
+- Behavior when redaction fails (does the secret leave a trace in logs?)
+- Huge event JSON (10MB) → skip
+- Intentionally broken config.toml → fall back to default
 
 ---
 
-# 13. 限界・未確認事項
+# 13. Limitations / unverified items
 
-## 13.1 実装着手前に verify が必要
+## 13.1 Items to verify before implementation starts
 
-| 項目 | 解消手段 | 状態 |
+| Item | Resolution | Status |
 |---|---|---|
-| Claude Code `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` の実 path | Phase A-1 実機 verify | **✓ 完了** (2026-05-15、dev mode で `~/.claude/plugins/data/agent-output-tracer-inline/` を実測。永続 install での suffix 有無は Phase A-11 で再 verify) |
-| Claude Code PostToolUse `tool_response` の Read 結果フォーマット | Phase A-3 実機 verify | **✓ 完了** (dict 型 `{"type":"text","file":{...}}`、付録 A.4 反映) |
-| Claude Code Stop hook `response_text` の completeness | Phase A-4 実機 verify | **✓ 完了** (実 field 名は `last_assistant_message`、`stop_reason` は非到来、付録 A.5 反映) |
-| Claude Code UserPromptSubmit event field | Phase A-4 実機 verify | **✓ 完了** (実 field 名は `prompt`、付録 A.2 反映) |
-| Claude Code SessionEnd event の field | Phase A-3 実機 verify | **✓ 完了** (`reason` field あり、付録 A.6 反映。`SessionEnd` 単独 fire の可能性も観測) |
-| Codex hook 仕様 | Phase C-0 公式 docs | **完了**（2026-05-14〜15、§3.2 に反映）|
-| Codex `session_id` の format（UUID v4 or 独自）| Phase C-1 実機 verify | 未 |
-| Codex native plugin data env var（`${CLAUDE_PLUGIN_ROOT}` 相当）| Phase C-4 実機 verify | 未 |
-| Codex schema の minor version 間破壊的変更 | Phase C-10 changelog 再確認 | 未 |
-| Codex の WebSearch / Read 相当 tool での PostToolUse 発火可否 | Phase C-6 実機 verify | 未（公式 docs では非発火明示）|
+| Actual paths of Claude Code `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` | Phase A-1 real-environment verify | **✓ Complete** (2026-05-15, measured `~/.claude/plugins/data/agent-output-tracer-inline/` in dev mode. Whether the suffix is present in persistent install will be re-verified in Phase A-11) |
+| Format of Claude Code PostToolUse `tool_response` for Read results | Phase A-3 real-environment verify | **✓ Complete** (dict type `{"type":"text","file":{...}}`, reflected in Appendix A.4) |
+| Completeness of `response_text` from the Claude Code Stop hook | Phase A-4 real-environment verify | **✓ Complete** (actual field name is `last_assistant_message`, `stop_reason` never arrives; reflected in Appendix A.5) |
+| Claude Code UserPromptSubmit event fields | Phase A-4 real-environment verify | **✓ Complete** (actual field name is `prompt`, reflected in Appendix A.2) |
+| Fields of the Claude Code SessionEnd event | Phase A-3 real-environment verify | **✓ Complete** (`reason` field present, reflected in Appendix A.6. Also observed that `SessionEnd` may fire on its own) |
+| Codex hook spec | Phase C-0 official docs | **Complete** (2026-05-14 to 15, reflected in §3.2) |
+| Format of Codex `session_id` (UUID v4 or custom) | Phase C-1 real-environment verify | Pending |
+| Codex native plugin data env var (`${CLAUDE_PLUGIN_ROOT}` equivalent) | Phase C-4 real-environment verify | Pending |
+| Breaking changes between Codex schema minor versions | Phase C-10 changelog re-check | Pending |
+| Whether PostToolUse fires for Codex's WebSearch / Read-equivalent tools | Phase C-6 real-environment verify | Pending (officially documented as non-firing) |
 
-## 13.2 設計上の制限
+## 13.2 Design-level limitations
 
-- **hook は agent 内部 context を観測できない**: attention 状態 / token-level focus は不可視
-- **rot を「正確検知」できない**: anomaly hints は proxy、user 判断の補助
-- **session 跨ぎ挙動**: 各 session 独立 forensic、long-running stateful agent は別設計
-- **agent 出力の正誤判定**: hook データでは「正しさ」は決定不能、user / 外部 reviewer に委ねる
-- **tool_response の content 取得**: large content は excerpt のみ default、full mode はストレージ・性能 trade-off
-- **hallucination 検知の精度**: source visible なら検出可、agent の implicit knowledge との区別は不可能
+- **Hooks cannot observe the agent's internal context**: attention state / token-level focus are invisible
+- **Cannot "accurately detect" rot**: anomaly hints are proxies, assistive to user judgment
+- **Cross-session behavior**: forensics is independent per session; long-running stateful agents need a separate design
+- **Correctness judgment of agent output**: undecidable from hook data alone; defer to the user / external reviewers
+- **Acquisition of tool_response content**: large content is excerpt-only by default; full mode is a storage / performance trade-off
+- **Accuracy of hallucination detection**: detectable when the source is visible; cannot be distinguished from the agent's implicit knowledge
 
-## 13.3 運用で調整が必要
+## 13.3 Items that need tuning at operation time
 
-- capture 粒度（excerpt 文字数、tool_response の full / off）
-- retention 期間（業務性質依存）
-- redaction pattern（host repo 固有 secret format 追加）
-- anomaly hints 閾値
-- 巨大 session 時の query 性能（index 設計）
+- Capture granularity (excerpt char count, full / off for tool_response)
+- Retention period (depends on the nature of the work)
+- Redaction patterns (add host repo-specific secret formats)
+- Anomaly hints thresholds
+- Query performance for huge sessions (index design)
 
 ---
 
-# 14. 公開リリース戦略
+# 14. Public release strategy
 
-## 14.1 当面（Phase A-B）
+## 14.1 For now (Phase A-B)
 
-- 個人 / 小規模 team による local install + GitHub install
-- public repo (`itosdad/agent-output-tracer`)、信頼 user に共有
-- feedback 収集
+- Local install + GitHub install by individuals / small teams
+- Public repo (`itosdad/agent-output-tracer`), shared with trusted users
+- Collect feedback
 
-## 14.2 公式 Marketplace 公開（Phase C 後の選択肢）
+## 14.2 Official Marketplace publication (option after Phase C)
 
-公式 Claude Code marketplace に「登録された marketplace」として収録される場合の要件（公式 docs 未確認の部分は Phase C-Late で再確認）:
+Requirements when listed as a "registered marketplace" on the official Claude Code marketplace (items not confirmed in official docs are to be re-confirmed in Phase C-Late):
 
-1. `plugin.json` 必須 metadata 完備
-2. README に screenshot + workflow 例
+1. Required metadata in `plugin.json` complete
+2. README with screenshots + workflow examples
 3. CHANGELOG.md
-4. GitHub Actions CI（test / lint）
-5. semantic versioning
+4. GitHub Actions CI (test / lint)
+5. Semantic versioning
 
-## 14.3 配布チャネル（実機 verify 済 / 2026-05-15）
+## 14.3 Distribution channels (real-environment verified / 2026-05-15)
 
-**正しい install フロー**（公式 docs 確認済、claude-code-guide subagent 経由）:
+**Correct install flow** (confirmed against official docs, via claude-code-guide subagent):
 
 ```
 /plugin marketplace add itosdad/agent-output-tracer
 /plugin install agent-output-tracer@itosdad-agent-output-tracer
 ```
 
-つまり「GitHub repo を marketplace として登録 → その中の plugin を install」の **2 段階フロー**。「`claude plugin install <git-url>` の 1 行 install」は公式コマンドとして**存在しない** (旧版 §14.3 の記述は推測誤り、訂正済)。
+That is, "register a GitHub repo as a marketplace → install a plugin within it" — a **two-step flow**. The "one-line `claude plugin install <git-url>` install" does **not exist** as an official command (the description in the old §14.3 was a wrong guess; corrected).
 
-この 2 段階を成立させるため、本 repo は同時に:
+To make this two-step flow possible, this repo simultaneously places **both** of the following at the root:
 
-- `.claude-plugin/plugin.json` — plugin 本体定義
-- `.claude-plugin/marketplace.json` — この repo が 1 plugin だけ収録する個人 marketplace である宣言
+- `.claude-plugin/plugin.json` — plugin body definition
+- `.claude-plugin/marketplace.json` — declaration that this repo is a personal marketplace containing exactly 1 plugin
 
-の **両方** を root に配置する（`marketplace.json` の `plugins[0].source = "./"` で同 repo の plugin を指す）。
+(`marketplace.json` `plugins[0].source = "./"` points to the plugin in the same repo).
 
 ### Update flow
 
-公式 version 解決順:
-1. `plugin.json` の `version` field
-2. `marketplace.json` plugin entry の `version` field（plugin.json と齟齬したら plugin.json が silent に勝つので片方に集約）
+Official version resolution order:
+1. `version` field in `plugin.json`
+2. `version` field in the marketplace.json plugin entry (if it diverges from plugin.json, plugin.json silently wins, so consolidate on one)
 3. git commit SHA
 
-本 plugin は `plugin.json` の `version` を semver で明示 (`"0.1.0"` 等) し、release ごとに bump + git tag (`v0.1.0`) を打つ運用。user 側 update は `/plugin update agent-output-tracer@itosdad-agent-output-tracer`。
+This plugin specifies `version` in `plugin.json` in semver explicitly (e.g., `"0.1.0"`) and bumps + git tags (`v0.1.0`) per release. User-side update is `/plugin update agent-output-tracer@itosdad-agent-output-tracer`.
 
-### dev mode との関係
+### Relation to dev mode
 
-dev mode (`claude --plugin-dir ~/work/agent-output-tracer`) は marketplace.json を経由せず source path 直参照。`/reload-plugins` で commit を即反映可能、version bump 不要。本番運用 (`/plugin marketplace add`) と排他。
+Dev mode (`claude --plugin-dir ~/work/agent-output-tracer`) bypasses marketplace.json and references the source path directly. `/reload-plugins` reflects commits immediately, no version bump needed. Mutually exclusive with production operation (`/plugin marketplace add`).
 
 ---
 
-# 付録 A: Claude Code hook event schema（実機 verify 済、2026-05-15）
+# Appendix A: Claude Code hook event schema (real-environment verified, 2026-05-15)
 
-実 event capture から確認した形（公式 docs の "想定 field" 名が一部実機と違っていたため、本付録は **実機 dump をベース** に書き換えてある。verify 元: `~/.claude/plugins/data/agent-output-tracer-inline/sessions/<UUID>/events.jsonl` で観測した raw_event）。
+The shape confirmed by real event captures (the "expected field" names in the official docs differed from the real environment in places, so this appendix is **rewritten based on the real-environment dump**. Verification source: raw_event observed in `~/.claude/plugins/data/agent-output-tracer-inline/sessions/<UUID>/events.jsonl`).
 
-## A.1 共通 field
+## A.1 Common fields
 
-すべての hook で以下が来る:
+Every hook receives the following:
 
 ```json
 {
@@ -1623,7 +1625,7 @@ dev mode (`claude --plugin-dir ~/work/agent-output-tracer`) は marketplace.json
 }
 ```
 
-`permission_mode` は **turn-scoped hook (PreToolUse / PostToolUse / Stop) のみ** で来る (`"default"` 等)。SessionEnd には来ない。
+`permission_mode` is delivered **only for turn-scoped hooks (PreToolUse / PostToolUse / Stop)** (e.g., `"default"`). It does not come on SessionEnd.
 
 ## A.2 UserPromptSubmit
 
@@ -1631,11 +1633,11 @@ dev mode (`claude --plugin-dir ~/work/agent-output-tracer`) は marketplace.json
 {
   ...common,
   "hook_event_name": "UserPromptSubmit",
-  "prompt": "..."                                           // ← Codex と同じ field 名
+  "prompt": "..."                                           // ← same field name as Codex
 }
 ```
 
-**重要**: 公式 docs での想定は `user_prompt` だったが、実 event は `prompt`。本 plugin の adapter は両方対応している（`user_prompt` → `prompt` fallback）。
+**Important**: The official docs expected `user_prompt`, but the real event uses `prompt`. This plugin's adapter handles both (`user_prompt` → `prompt` fallback).
 
 ## A.3 PreToolUse
 
@@ -1647,14 +1649,14 @@ dev mode (`claude --plugin-dir ~/work/agent-output-tracer`) は marketplace.json
   "tool_name": "Read|Glob|Grep|Edit|Write|MultiEdit|Bash",
   "tool_input": {
     "file_path": "/path/..."                                // Read/Write/Edit/MultiEdit
-    // または "pattern": "...", "path": "..."               // Glob/Grep
-    // または "command": "...", "description": "..."        // Bash
+    // or "pattern": "...", "path": "..."                   // Glob/Grep
+    // or "command": "...", "description": "..."            // Bash
   },
-  "tool_use_id": "toolu_01EibVnnMzShRvxNPTPieM8y"           // ← 公式 docs に未記載
+  "tool_use_id": "toolu_01EibVnnMzShRvxNPTPieM8y"           // ← not in official docs
 }
 ```
 
-`tool_use_id` は Claude API の tool_use block id。本 plugin は raw_event に保持するのみで Phase A では未活用。Phase B の `trace` / `why` で pre↔post 厳密紐付けに利用できる。
+`tool_use_id` is the Claude API tool_use block id. This plugin only retains it in raw_event and does not use it in Phase A. Phase B `trace` / `why` can use it for strict pre↔post pairing.
 
 ## A.4 PostToolUse
 
@@ -1664,8 +1666,8 @@ dev mode (`claude --plugin-dir ~/work/agent-output-tracer`) は marketplace.json
   "permission_mode": "default",
   "hook_event_name": "PostToolUse",
   "tool_name": "Read",
-  "tool_input": {...},                                       // PreToolUse と同じ
-  "tool_response": {                                         // ← **dict 型** (string ではない)
+  "tool_input": {...},                                       // same as PreToolUse
+  "tool_response": {                                         // ← **dict type** (not a string)
     "type": "text",
     "file": {
       "filePath": "/path/...",
@@ -1674,15 +1676,15 @@ dev mode (`claude --plugin-dir ~/work/agent-output-tracer`) は marketplace.json
       "startLine": 1,
       "totalLines": 92
     }
-    // Bash の場合は {"stdout": "...", "stderr": "...", "interrupted": bool,
-    //                "isImage": bool, "noOutputExpected": bool}
+    // For Bash: {"stdout": "...", "stderr": "...", "interrupted": bool,
+    //            "isImage": bool, "noOutputExpected": bool}
   },
-  "tool_use_id": "toolu_01...",                              // PreToolUse と同 id
-  "duration_ms": 24                                          // ← 公式 docs に未記載
+  "tool_use_id": "toolu_01...",                              // same id as PreToolUse
+  "duration_ms": 24                                          // ← not in official docs
 }
 ```
 
-`tool_response` は **dict** で来るため、本 plugin の `_coerce_response` で `json.dumps` 化してから記録する（downstream grep / index で string として扱えるように）。`duration_ms` は Phase B の anomaly hint (long-running tool 検知) で活用予定。
+Because `tool_response` arrives as a **dict**, this plugin's `_coerce_response` `json.dumps`-encodes it before recording (so that downstream grep / index treats it as a string). `duration_ms` is intended for use in Phase B anomaly hints (long-running tool detection).
 
 ## A.5 Stop
 
@@ -1691,12 +1693,12 @@ dev mode (`claude --plugin-dir ~/work/agent-output-tracer`) は marketplace.json
   ...common,
   "permission_mode": "default",
   "hook_event_name": "Stop",
-  "stop_hook_active": false,                                 // ← bool。"Stop hook が現在 active か"
-  "last_assistant_message": "..."                            // ← Codex と同じ field 名
+  "stop_hook_active": false,                                 // ← bool. "Whether the Stop hook is currently active"
+  "last_assistant_message": "..."                            // ← same field name as Codex
 }
 ```
 
-**重要**: 公式 docs での想定は `response_text` / `stop_reason: "end_turn|tool_use|max_tokens"` だったが、実 event は `last_assistant_message` で、`stop_reason` は**来ない**。代わりに `stop_hook_active: bool` が来る（plugin が直接活用する意味は薄い）。本 plugin の adapter は `response_text` → `last_assistant_message` fallback で動作。`stop_reason` は normalized event 上で常に None。
+**Important**: The official docs expected `response_text` / `stop_reason: "end_turn|tool_use|max_tokens"`, but the real event uses `last_assistant_message` and `stop_reason` is **not delivered**. Instead, `stop_hook_active: bool` is delivered (little direct use for the plugin). This plugin's adapter operates with `response_text` → `last_assistant_message` fallback. `stop_reason` is always None on the normalized event.
 
 ## A.6 SessionEnd
 
@@ -1704,34 +1706,34 @@ dev mode (`claude --plugin-dir ~/work/agent-output-tracer`) は marketplace.json
 {
   ...common (session_id, transcript_path, cwd, hook_event_name),
   "hook_event_name": "SessionEnd",
-  "reason": "prompt_input_exit"                              // ← 公式 docs に未記載
+  "reason": "prompt_input_exit"                              // ← not in official docs
 }
 ```
 
-`reason` は session 終了種別。実機観測値:
-- `"prompt_input_exit"` — `/exit` 等の正常終了
-- （他に `"clear"`, `"logout"` 等がありそうだが Phase A では未観測。Phase B で追加 verify）
+`reason` is the kind of session end. Empirically observed values:
+- `"prompt_input_exit"` — normal end such as `/exit`
+- (Others like `"clear"`, `"logout"` likely exist but were not observed in Phase A. Additional verify in Phase B)
 
-注意: **`SessionEnd` だけが単独で fire することがある** — `hooks/hooks.json` の load 失敗時、その他 hook (UserPromptSubmit / PreTool / PostTool / Stop) は発火しないが、SessionEnd は `/exit` で fire するケースを観測（events.jsonl に 1 行だけ残る空 session）。Claude Code の plugin loader が hook ごとに独立判定している可能性。
-
----
-
-# 付録 A.7: dev mode (`--plugin-dir`) 固有の挙動
-
-実機 verify 済の挙動:
-
-- **data dir 名に `-inline` suffix が付く**: `~/.claude/plugins/data/agent-output-tracer-inline/`（永続 install では suffix なしになるはずだが Phase A-11 で実機再 verify）
-- **`${CLAUDE_PLUGIN_DATA}` 解決パス**: `~/.claude/plugins/data/<plugin_name>[-inline]/`
-- **session_id format**: UUID v4 (`ba640ad4-5982-4601-8bed-69164fd10851`) — Codex 側との互換考慮では「string とだけ仮定」が正しいまま
-- **transcript_path 命名**: `~/.claude/projects/<cwd を slash→hyphen 変換した slug>/<session_id>.jsonl`
+Note: **`SessionEnd` can fire by itself** — when `hooks/hooks.json` fails to load, the other hooks (UserPromptSubmit / PreTool / PostTool / Stop) don't fire, but a case was observed where SessionEnd does fire on `/exit` (leaving a single line in events.jsonl for an empty session). Likely the Claude Code plugin loader judges each hook independently.
 
 ---
 
-# 付録 B: Codex hook event schema（公式 spec 確認済、2026-05-14〜15 verify）
+# Appendix A.7: Behaviors specific to dev mode (`--plugin-dir`)
 
-公式 generated schema（https://github.com/openai/codex/tree/main/codex-rs/hooks/schema/generated）と公式 docs（https://developers.openai.com/codex/hooks）より：
+Real-environment verified behaviors:
 
-## B.1 共通 input fields（8 種すべての required）
+- **Data dir name gets a `-inline` suffix**: `~/.claude/plugins/data/agent-output-tracer-inline/` (for persistent install it should be without the suffix, but re-verify in Phase A-11)
+- **`${CLAUDE_PLUGIN_DATA}` resolves to**: `~/.claude/plugins/data/<plugin_name>[-inline]/`
+- **session_id format**: UUID v4 (`ba640ad4-5982-4601-8bed-69164fd10851`) — for Codex compatibility, "assume only string" remains the correct stance
+- **transcript_path naming**: `~/.claude/projects/<slug with cwd slash→hyphen conversion>/<session_id>.jsonl`
+
+---
+
+# Appendix B: Codex hook event schema (official spec confirmed, 2026-05-14 to 15 verify)
+
+From the official generated schema (https://github.com/openai/codex/tree/main/codex-rs/hooks/schema/generated) and the official docs (https://developers.openai.com/codex/hooks):
+
+## B.1 Common input fields (required for all 8 events)
 
 ```json
 {
@@ -1741,11 +1743,11 @@ dev mode (`claude --plugin-dir ~/work/agent-output-tracer`) は marketplace.json
   "model": "model name",
   "permission_mode": "default|acceptEdits|plan|dontAsk|bypassPermissions",
   "transcript_path": "/path/... or null",
-  "turn_id": "string"  // turn-scoped 5 種（PreToolUse / PostToolUse / UserPromptSubmit / Stop / PermissionRequest）のみ required
+  "turn_id": "string"  // required only for the 5 turn-scoped events (PreToolUse / PostToolUse / UserPromptSubmit / Stop / PermissionRequest)
 }
 ```
 
-## B.2 event 別の追加 field
+## B.2 Additional fields per event
 
 ### PreToolUse
 
@@ -1754,7 +1756,7 @@ dev mode (`claude --plugin-dir ~/work/agent-output-tracer`) は marketplace.json
   ...common,
   "tool_name": "Bash|apply_patch|...",
   "tool_input": {
-    "command": "..."   // ← canonical、`cmd` は公式根拠なし
+    "command": "..."   // ← canonical; `cmd` has no official basis
   }
 }
 ```
@@ -1766,20 +1768,20 @@ dev mode (`claude --plugin-dir ~/work/agent-output-tracer`) は marketplace.json
   ...common,
   "tool_name": "Bash|apply_patch|MCP_tool_name",
   "tool_input": {...},
-  "tool_response": <JSON value>  // tool-specific output、MCP の場合は MCP call result
+  "tool_response": <JSON value>  // tool-specific output; for MCP it's the MCP call result
 }
 ```
 
-**重要な制限**: Codex の Read 相当 / WebSearch 等の non-shell, non-MCP tool は **PostToolUse 発火しない**:
+**Important limitation**: Codex's Read equivalents / non-shell, non-MCP tools like WebSearch **do not fire PostToolUse**:
 
-> "This doesn't intercept all shell calls yet... Similarly, this doesn't intercept `WebSearch` or other non-shell, non-MCP tool calls." (公式 hooks docs)
+> "This doesn't intercept all shell calls yet... Similarly, this doesn't intercept `WebSearch` or other non-shell, non-MCP tool calls." (official hooks docs)
 
 ### UserPromptSubmit
 
 ```json
 {
   ...common,
-  "prompt": "user prompt 全文"
+  "prompt": "full user prompt text"
 }
 ```
 
@@ -1804,67 +1806,67 @@ dev mode (`claude --plugin-dir ~/work/agent-output-tracer`) は marketplace.json
 
 ### PermissionRequest
 
-complex schema、本 plugin では採用しないため省略。詳細は generated schema directory 参照。
+Complex schema; not adopted by this plugin, omitted. See the generated schema directory for details.
 
 ### PreCompact / PostCompact (0.129+)
 
-session compaction lifecycle event。本 plugin の Phase D で活用検討。
+Session compaction lifecycle events. Use in Phase D of this plugin is under consideration.
 
-## B.3 plugin が使う defensive 読み取り（簡素化版）
+## B.3 Defensive reads used by the plugin (simplified version)
 
-公式 spec で `event` 表記 / `cmd` field は **存在しないと確定**したため、defensive code を以下に簡素化：
+Since the official spec confirms that the `event` notation / `cmd` field **do not exist**, defensive code is simplified to:
 
 ```python
-# 簡素化（公式 spec 確認後の正しい形）
+# Simplified (the correct form after official spec verification)
 event_name = event.get("hook_event_name", "unknown")
 command = tool_input.get("command", "")
 ```
 
-経験的観察の `event` / `cmd` 分岐は **不要、削除推奨**。
+The empirically observed `event` / `cmd` branches are **unnecessary, recommended for removal**.
 
-## B.4 output（hook → Codex への返答）
+## B.4 output (hook → response back to Codex)
 
-current format（PreToolUse）：
+Current format (PreToolUse):
 
 ```json
 {
   "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",   // ← output 側は camelCase
+    "hookEventName": "PreToolUse",   // ← output side is camelCase
     "permissionDecision": "deny",
     "permissionDecisionReason": "..."
   }
 }
 ```
 
-`agent-output-tracer` は read-only forensic なので **exit 0 + 空 stdout** のみ使用、output 側 schema は使わない。
+`agent-output-tracer` is read-only forensic, so it only uses **exit 0 + empty stdout**; the output-side schema is unused.
 
-## B.5 multiple hooks の優先
+## B.5 Priority of multiple hooks
 
 > "Multiple matching command hooks for the same event are launched concurrently, so one hook cannot prevent another matching hook from starting."
 > "If multiple matching hooks return decisions, any `deny` wins."
 
-→ plugin は decision を返さないため、他 hook との並走で問題なし。
+→ The plugin returns no decision, so there is no problem running alongside other hooks.
 
 ---
 
-# 付録 C: Debug workflow 例
+# Appendix C: Debug workflow examples
 
-## C.1 Hallucination 調査
+## C.1 Hallucination investigation
 
 ```
-[user]: 「agent が "DI コンテナを使った設計" って言ってきたけど、
-         うちのプロジェクトでは DI 使わない方針。なぜこう言った？」
+[user]: "The agent told me it 'used a DI container in the design', but our
+         project's policy is not to use DI. Why did it say this?"
 
-$ agent-output-tracer trace --session latest --output "DI コンテナ"
+$ agent-output-tracer trace --session latest --output "DI container"
 
-Output 'DI コンテナ' first appeared at 2026-05-14T10:30:12.456+09:00
+Output 'DI container' first appeared at 2026-05-14T10:30:12.456+09:00
 Causal trail (prior events):
   - user prompt at 10:30:00: ✗ no 'DI' mentioned
   - files read prior to this output:
       [10:30:03] CLAUDE.md: ✗ does not contain
       [10:30:08] src/lib/di.ts: ✓ contains  ← source!
 
-→ user: "あー、di.ts を勝手に読んだのか。なぜ？"
+→ user: "Ah, it read di.ts on its own. Why?"
 
 $ agent-output-tracer why --session latest --event "Read(src/lib/di.ts)"
 
@@ -1877,42 +1879,42 @@ What came immediately before:
    Glob pattern: src/**/*.tsx
    (agent picked this path from Glob results, no explicit user mention)
 
-→ user: "Glob が無関係 file を返して、agent が読んじゃったのか。
-         次回は Glob の pattern をもっと絞ろう。"
+→ user: "The Glob returned an unrelated file and the agent read it.
+         Next time I'll narrow down the Glob pattern."
 ```
 
-## C.2 Wrong tool 調査
+## C.2 Wrong tool investigation
 
 ```
-[user]: 「SEO 案件で agent が search-console-interpreter を invoke したけど、
-         本当は serp-reverse-engineer のはずでは？」
+[user]: "On an SEO project, the agent invoked search-console-interpreter,
+         but it should have been serp-reverse-engineer, right?"
 
 $ agent-output-tracer why --session today \
   --event "Skill(search-console-interpreter)"
 
 Event: 14:22:30 Task tool invoked with subagent_type='search-console-interpreter'
 What came immediately before:
-  - [14:22:25] user_prompt: "新しいキーワードの SERP 分析をしたい"
+  - [14:22:25] user_prompt: "I want to do SERP analysis for a new keyword"
   - [14:22:27] agent thinking (Read CLAUDE.md)
   - [14:22:30] (the invocation above)
 
-⚠️ User prompt mentioned 'SERP 分析' but agent invoked 'search-console-interpreter'
+⚠️ User prompt mentioned 'SERP analysis' but agent invoked 'search-console-interpreter'
    (interprets GSC data, not SERP results)
 
 $ agent-output-tracer grep --session today --pattern "serp"
 
-[14:22:25] user_prompt.text: "新しいキーワードの **SERP** 分析をしたい"
+[14:22:25] user_prompt.text: "I want to do **SERP** analysis for a new keyword"
 (no other 'serp' mentions in session)
 
-→ user: "agent は SERP と GSC を取り違えた。routing rules が曖昧かも、
-         CLAUDE.md に明示しよう。"
+→ user: "The agent confused SERP and GSC. The routing rules may be
+         ambiguous; I'll make it explicit in CLAUDE.md."
 ```
 
-## C.3 Cross-namespace bleed 調査
+## C.3 Cross-namespace bleed investigation
 
 ```
-[user]: 「Project A の作業をしてたはずなのに、agent が Project B の file を
-         参照してきた」
+[user]: "I was supposed to be working on Project A, but the agent referenced
+         Project B files."
 
 $ agent-output-tracer diff --session latest
 
@@ -1924,7 +1926,7 @@ Agent accessed without user mention:
   - projects/B/utils.ts             ← ⚠️ unexpected
   - projects/B/types.ts             ← ⚠️ unexpected
 
-→ user: "Project B を読んだ理由を確認"
+→ user: "Check why Project B was read"
 
 $ agent-output-tracer why --session latest --event "Read(projects/B/utils.ts)"
 
@@ -1936,176 +1938,176 @@ What came immediately before:
    Consider scoping Glob to projects/A/ to avoid cross-project bleed.
 ```
 
-## C.4 Session quality drop 調査
+## C.4 Session quality drop investigation
 
 ```
-[user]: 「session の最初は良い回答だったのに、後半から的外れになった」
+[user]: "The session's early answers were good, but the second half went off-target."
 
 $ agent-output-tracer replay --session latest --show-hints
 
-[10:00:00] [user] "FooBar を実装して"
+[10:00:00] [user] "Implement FooBar"
 [10:00:05] [tool] Read CLAUDE.md (12KB)
 [10:00:08] [tool] Read src/foo.ts (5KB)
-[10:00:15] [agent] "実装案を提示します..."
+[10:00:15] [agent] "Here is the implementation plan..."
 
-[10:05:00] [user] "テストも書いて"
+[10:05:00] [user] "Write tests too"
 [10:05:03] [tool] Read CLAUDE.md (12KB)    ⚠️ 2nd read (30 sec ago)
-[10:05:12] [agent] "テスト案..."
+[10:05:12] [agent] "Test plan..."
 
-[10:10:00] [user] "ドキュメントも"
+[10:10:00] [user] "Documentation as well"
 [10:10:01] [tool] Read CLAUDE.md (12KB)    ⚠️ 3rd read in 10 min (lost-in-middle hint)
 [10:10:05] [tool] Read src/foo.ts (5KB)    ⚠️ 2nd read
-[10:10:18] [agent] "ドキュメント案..."  ← user's "後半から的外れ" starts here?
+[10:10:18] [agent] "Documentation plan..."  ← user's "off-target second half" starts here?
 
-→ user: "確かにこの時点から context が肥大してる。
-         CLAUDE.md を 3 回読んでる時点で attention budget 圧迫してたかも。
-         次は long task では session 分割しよう。"
+→ user: "Indeed, the context has bloated from this point on.
+         Reading CLAUDE.md 3 times by then may have squeezed the attention budget.
+         Next time on long tasks I'll split the session."
 ```
 
 ---
 
-# 付録 D: 用語集
+# Appendix D: Glossary
 
-| 用語 | 定義 |
+| Term | Definition |
 |---|---|
-| **Session** | agent の 1 起動から終了までの単位。session_id で識別 |
-| **Event** | session 内の 1 つの行為（user prompt / tool call / agent response 等）|
-| **Normalized event** | engine 固有の event JSON を plugin 内部の統一 schema に変換した dict |
-| **Forensic recorder** | session を完全記録する仕組み、原因 trace のための data 提供 |
-| **Causal trail** | ある event に至るまでの直前 event 系列、因果連鎖の trace |
-| **Anomaly hint** | replay 時に表示される注意喚起。pattern 自動検知の副次出力 |
-| **Hallucination candidate** | agent response に出現したが、user prompt にも read 履歴にも source が見当たらない言及 |
-| **Redaction** | secret pattern を log 書込前に mask する処理 |
-| **Issue-agnostic** | 違和感の種類を事前分類しないアプローチ |
-| **Engine adapter** | engine 別の event 形式を統一 schema に変換する変換層 |
-| **Excerpt** | tool_response 等の長文を先頭 N 文字に切り詰めた断片 |
+| **Session** | Unit from one agent start to its end. Identified by session_id |
+| **Event** | A single action within a session (user prompt / tool call / agent response, etc.) |
+| **Normalized event** | A dict converted from engine-specific event JSON into the plugin's internal unified schema |
+| **Forensic recorder** | A mechanism that fully records sessions; provides data for cause tracing |
+| **Causal trail** | The series of immediately preceding events leading up to a given event, a trace of the causal chain |
+| **Anomaly hint** | A heads-up shown during replay. A subsidiary output of pattern auto-detection |
+| **Hallucination candidate** | A mention that appears in an agent response but for which no source is found in either user prompts or read history |
+| **Redaction** | The process of masking secret patterns before writing to the log |
+| **Issue-agnostic** | An approach that does not classify the anomaly's type in advance |
+| **Engine adapter** | The conversion layer that turns each engine's event format into the unified schema |
+| **Excerpt** | A fragment cut to the leading N characters of long content such as tool_response |
 
 ---
 
-# 引継ぎメモ（次セッション・他 agent 向け）
+# Handoff notes (for the next session / another agent)
 
-## このセッションで決まったこと
+## What was decided in this session
 
-1. **plugin 名**: `agent-output-tracer`（issue-agnostic な debugger 機能を name で表現）
-2. **配置**: `~/work/agent-output-tracer/`（独立 git repo）
-3. **主機能**: 検知ではなく **forensic / debug 機能**。user が違和感を感じた時に session を replay / trace / query 可能
-4. **issue-agnostic**: 違和感の種別を分類しない、debug capability のみ提供
-5. **agent compliance に依存しない mechanical recorder**
-6. **Anomaly hint patterns**: 副次として replay 時に表示、main 機能ではない（具体 pattern は §11 Phase B-8 参照）
-7. **host repo 非汚染**: plugin data dir に閉じる
-8. **engine 対応**: Claude Code 主軸、Codex は Phase C
-9. **5 hook 採用**: UserPromptSubmit / PreToolUse / PostToolUse / Stop / SessionEnd
-10. **content capture**: default は excerpt + paths、full mode は opt-in
+1. **Plugin name**: `agent-output-tracer` (the name expresses the issue-agnostic debugger function)
+2. **Placement**: `~/work/agent-output-tracer/` (independent git repo)
+3. **Main feature**: **forensic / debug functionality**, not detection. When the user notices something off, they can replay / trace / query the session
+4. **Issue-agnostic**: Does not classify the type of anomaly; only provides debug capability
+5. **Mechanical recorder, not dependent on agent compliance**
+6. **Anomaly hint patterns**: Subsidiary, shown during replay; not the main feature (specific patterns in §11 Phase B-8)
+7. **No host repo contamination**: contained to the plugin data dir
+8. **Engine support**: Claude Code is primary, Codex is Phase C
+9. **5 hooks adopted**: UserPromptSubmit / PreToolUse / PostToolUse / Stop / SessionEnd
+10. **Content capture**: default is excerpt + paths; full mode is opt-in
 
-## 実装着手時に最初にやること
+## First things to do when implementation starts
 
-1. `~/work/agent-output-tracer/` git init
-2. `pyproject.toml` draft（Python 3.11+、最小依存）
-3. **Phase A-1** から開始：`plugin.json` + 空 `hooks/hooks.json` で plugin install を成功させる
-4. Phase A-2 から TDD で進める：単体 test 駆動で `core/normalizer.py` を構築
-5. Phase A-3 〜 A-6 は逐次（recorder → user prompt / stop → redactor → replay）
-6. Phase A 完了したら **`replay` コマンドが動く** ことが必須 milestone（最重要主機能）
+1. `git init` in `~/work/agent-output-tracer/`
+2. Draft `pyproject.toml` (Python 3.11+, minimal dependencies)
+3. Start from **Phase A-1**: make plugin install succeed with `plugin.json` + empty `hooks/hooks.json`
+4. From Phase A-2 onward, proceed TDD: build `core/normalizer.py` driven by unit tests
+5. Phase A-3 to A-6 sequentially (recorder → user prompt / stop → redactor → replay)
+6. After Phase A completes, **the `replay` command working** is the mandatory milestone (the most important main feature)
 
-## 注意点
+## Notes
 
-- 本 doc 内で「host repo」「OS」「Director OS」のような特定 repo 固有概念は **plugin 本体から排除**。すべて config 駆動
-- `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` の挙動は Phase A-1 で実機 verify
-- Codex 公式 docs は本 doc 作成時に未確認、Phase C-0 で先行 verify 必要
-- **「rot を検知できる」と謳わない**: 検知 ≠ 提供。本 plugin は forensic recorder、判断は user
-- `replay` の出力品質が plugin の価値の大半を決める。Phase A-6 に時間をかける
-- redaction を初期から有効化（secret 漏れ事故予防）
+- In this doc, repo-specific concepts like "host repo", "OS", "Director OS" are **excluded from the plugin itself**. Everything is config-driven
+- Behavior of `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` is to be real-environment verified in Phase A-1
+- The Codex official docs were unverified at doc creation time; Phase C-0 needs a preceding verify
+- **Do not claim "we can detect rot"**: detection ≠ provision. This plugin is a forensic recorder; judgment is the user's
+- The output quality of `replay` determines most of the plugin's value. Spend time on Phase A-6
+- Enable redaction from the start (prevents secret-leak incidents)
 
-## 既に verify 済の primary sources
+## Primary sources already verified
 
-| Source | URL | 確認日 | 確認手段 |
+| Source | URL | Verified | Verification method |
 |---|---|---|---|
-| Claude Code hooks 公式 | https://code.claude.com/docs/en/hooks.md | 2026-05-14 | claude-code-guide subagent |
-| Claude Code plugins 公式 | https://code.claude.com/docs/en/plugins.md | 2026-05-14 | 同上 |
-| Claude Code plugins reference | https://code.claude.com/docs/en/plugins-reference.md | 2026-05-14 | 同上 |
-| Claude Code settings | https://code.claude.com/docs/en/settings.md | 2026-05-14 | 同上 |
+| Claude Code hooks official | https://code.claude.com/docs/en/hooks.md | 2026-05-14 | claude-code-guide subagent |
+| Claude Code plugins official | https://code.claude.com/docs/en/plugins.md | 2026-05-14 | Same as above |
+| Claude Code plugins reference | https://code.claude.com/docs/en/plugins-reference.md | 2026-05-14 | Same as above |
+| Claude Code settings | https://code.claude.com/docs/en/settings.md | 2026-05-14 | Same as above |
 
-## 未 verify、Phase A-1 / C-0 で確認すべき
+## Unverified — to be confirmed in Phase A-1 / C-0
 
-| 項目 | 重要度 |
+| Item | Importance |
 |---|---|
-| `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` の解決経路 | 高（Phase A-1）|
-| PostToolUse `tool_response` の Read 結果 format | 高（Phase A-3）|
-| Stop hook `response_text` の completeness | 中（Phase A-4）|
-| UserPromptSubmit event の prompt field 名 | 中（Phase A-4）|
-| SessionEnd event の field 詳細 | 中（Phase A-3）|
-| Codex CLI hooks 公式 docs | 中（Phase C-0）|
-| Codex UserPromptSubmit 相当の有無 | 中（同上）|
+| Resolution path of `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` | High (Phase A-1) |
+| Format of PostToolUse `tool_response` for Read results | High (Phase A-3) |
+| Completeness of Stop hook `response_text` | Medium (Phase A-4) |
+| Name of the prompt field on UserPromptSubmit | Medium (Phase A-4) |
+| Detailed fields of SessionEnd | Medium (Phase A-3) |
+| Codex CLI hooks official docs | Medium (Phase C-0) |
+| Existence of a Codex UserPromptSubmit equivalent | Medium (Same as above) |
 
 ---
 
-# 修訂履歴
+# Revision history
 
-## 2026-05-14（初版）
+## 2026-05-14 (initial version)
 
-- issue-agnostic forensic debugger plugin として設計成立（plugin 名 `agent-output-tracer`）
-- 検討段階で proxy 検知方式（pattern 自動検知）を棄却し、forensic recorder + user-driven query の役割分担に収束（rationale は §0.5 参照）
-- 5 hook 採用: UserPromptSubmit / PreToolUse / PostToolUse / Stop / SessionEnd
-- 8 主要 CLI コマンド定義: replay / trace / why / diff / state-at / grep / causal-graph / mentioned-but-not-read
-- Pattern 検知（P-X 系）は anomaly hint として副次化
-- Phase A / B / C の段階実装計画
-- 安全設計（failure tolerance / host 非汚染 / privacy redaction / 自動 GC / performance budget）
+- Established as an issue-agnostic forensic debugger plugin (plugin name `agent-output-tracer`)
+- During design, the proxy detection approach (pattern auto-detection) was rejected, converging on a role split of forensic recorder + user-driven query (rationale in §0.5)
+- 5 hooks adopted: UserPromptSubmit / PreToolUse / PostToolUse / Stop / SessionEnd
+- 8 main CLI commands defined: replay / trace / why / diff / state-at / grep / causal-graph / mentioned-but-not-read
+- Pattern detection (P-X series) demoted to a subsidiary anomaly hint
+- Phase A / B / C staged implementation plan
+- Safety design (failure tolerance / no host contamination / privacy redaction / auto GC / performance budget)
 
-## 2026-05-14〜15（Phase C-0 完了）— Codex 公式 hook docs verify
+## 2026-05-14 to 15 (Phase C-0 complete) — Codex official hook docs verified
 
-**契機**: 「Codex 公式 hook docs verify とは何か」「今 verify」という user 指示。
+**Trigger**: User instruction "What is the Codex official hook docs verify?" "Verify now."
 
-**実施**: general-purpose subagent 経由で OpenAI Codex CLI 公式 docs を一次資料 verify。defuddle で公式 docs を取得保存（`shared-assets/temporary/defuddle-openai-codex-hooks.md` 等）。
+**Action**: Verified the OpenAI Codex CLI official docs as a primary source via the general-purpose subagent. Retrieved and saved the official docs with defuddle (`shared-assets/temporary/defuddle-openai-codex-hooks.md` and so on).
 
-**主な発見**:
+**Main findings**:
 
-1. **Codex 公式 hooks docs 存在**: https://developers.openai.com/codex/hooks（および config-advanced / changelog / plugins/build / generated schemas）
-2. **利用可能な hook event は 8 種**: SessionStart / PreToolUse / PermissionRequest / PostToolUse / UserPromptSubmit / Stop / PreCompact / PostCompact（**SessionEnd は存在しない**）
-3. **`session_id` field 確認済**（全 event の required）
-4. **`turn_id` field 存在**: turn-scoped 5 event で required（Codex 固有拡張、Claude Code にはない）
-5. **経験的観察と矛盾した項目**:
-   - `event` 単体表記は **公式根拠なし**（defensive code 不要）
-   - `tool_input.cmd` は **公式根拠なし**（`command` のみ）
-6. **`SessionEnd` 不在 → 設計変更**: Codex では Stop event + session_id グルーピングで擬似的に session 完結を扱う、または SessionStart `source="clear"` で切替検知
-7. **PostToolUse 制限**: Bash / apply_patch / MCP のみ発火、Read / WebSearch 相当は非発火（公式明示）
-8. **Plugin 機構公式確認**: `codex plugin marketplace add <path or repo>` で install、`~/.codex/plugins/cache/...` に配置
-9. **Feature flag `[features] codex_hooks = true` 必須**（無いと silently ignored、install 手順で必須化）
-10. **version 推奨**: >= 0.128（plugin-bundled hooks）、compaction event 使うなら >= 0.129
+1. **Codex official hooks docs exist**: https://developers.openai.com/codex/hooks (and config-advanced / changelog / plugins/build / generated schemas)
+2. **8 available hook events**: SessionStart / PreToolUse / PermissionRequest / PostToolUse / UserPromptSubmit / Stop / PreCompact / PostCompact (**SessionEnd does not exist**)
+3. **`session_id` field confirmed** (required on all events)
+4. **`turn_id` field exists**: required on the 5 turn-scoped events (Codex-specific extension, absent in Claude Code)
+5. **Items contradicting the empirical observation**:
+   - Standalone `event` notation has **no official basis** (defensive code unnecessary)
+   - `tool_input.cmd` has **no official basis** (only `command`)
+6. **`SessionEnd` absence → design change**: in Codex, treat session completion pseudo-grouping via Stop event + session_id, or detect switching via SessionStart `source="clear"`
+7. **PostToolUse limitations**: fires only for Bash / apply_patch / MCP; Read / WebSearch equivalents do not fire (explicit in the official docs)
+8. **Plugin mechanism officially confirmed**: install via `codex plugin marketplace add <path or repo>`, placed in `~/.codex/plugins/cache/...`
+9. **Feature flag `[features] codex_hooks = true` required** (silently ignored if absent; mandated in install procedure)
+10. **Version recommendation**: >= 0.128 (plugin-bundled hooks), >= 0.129 if using compaction events
 
-**doc 修正内容**:
+**Doc revisions**:
 
-| 箇所 | Before | After |
+| Location | Before | After |
 |---|---|---|
-| frontmatter `verification_dates` | Codex 公式 docs は未 verify | Codex 公式 hooks docs verify 完了（2026-05-14〜15）追加 |
-| §3.2 Codex CLI section | 経験的観察ベースの薄い記述 | 公式 spec 確認済の詳細（8 event、共通 fields、PostToolUse 制限、SessionEnd 不在対応、plugin 機構、feature flag、version 要件、経験的観察との差異 summary）|
-| §10.2 Codex install | sample `config.toml.example` のみ | `codex plugin marketplace add` 公式手順 + feature flag 必須 + trusted project 制約 |
-| §11 Phase C | C-0〜C-5、verify 未完成として記述 | **C-0 完了**、残り C-1〜C-10 を spec 確定済として展開 |
-| §13.1 verify 状態 | Codex hook 仕様: Phase C-0 公式 docs | **完了** + 残課題（session_id format / native env var / version 互換）を列挙 |
-| 付録 B | 実測ベースの 1 schema 例 + defensive code | **公式 spec 確認済**: B.1〜B.5 で共通 fields / event 別 schema / 簡素化された defensive code / output format / multiple hooks 優先順位 |
+| frontmatter `verification_dates` | Codex official docs unverified | Added "Codex official hooks docs verify complete (2026-05-14 to 15)" |
+| §3.2 Codex CLI section | Thin description based on empirical observation | Detailed content with official spec confirmed (8 events, common fields, PostToolUse limitations, SessionEnd absence handling, plugin mechanism, feature flag, version requirements, summary of differences from empirical observation) |
+| §10.2 Codex install | Only a sample `config.toml.example` | `codex plugin marketplace add` official procedure + feature flag required + trusted project constraint |
+| §11 Phase C | C-0 to C-5, written as verify-not-complete | **C-0 complete**, remaining C-1 to C-10 expanded as spec-confirmed |
+| §13.1 verify status | Codex hook spec: Phase C-0 official docs | **Complete** + remaining items (session_id format / native env var / version compatibility) enumerated |
+| Appendix B | 1 schema example based on real measurements + defensive code | **Official spec confirmed**: B.1 to B.5 with common fields / per-event schema / simplified defensive code / output format / multiple-hooks priority |
 
-**残課題（Phase C 着手前に実機 verify が必要）**:
+**Remaining tasks (require real-environment verify before Phase C starts)**:
 
-- Codex `session_id` の正確な format（UUID v4 or 独自）
-- Codex native plugin data env var（`${CLAUDE_PLUGIN_ROOT}` 相当）の解決
-- Codex schema の minor version 間破壊的変更履歴
+- Exact format of Codex `session_id` (UUID v4 or custom)
+- Resolution of the Codex native plugin data env var (`${CLAUDE_PLUGIN_ROOT}` equivalent)
+- History of breaking changes between Codex schema minor versions
 
-**取得した公式 docs（gitignored `shared-assets/temporary/`）**:
+**Official docs retrieved (gitignored `shared-assets/temporary/`)**:
 
 - `defuddle-openai-codex-hooks.md` (486 lines, wordCount 2188)
 - `defuddle-openai-codex-hooks.json`
 - `defuddle-openai-codex-plugins-build.md`
 - `defuddle-openai-codex-changelog.md`
 
-これらは保管期限内に plugin repo (`~/work/agent-output-tracer/`) 着手時に移植可能。
+These can be ported into the plugin repo (`~/work/agent-output-tracer/`) when implementation starts, within the retention period.
 
-## 経緯（5 段階の設計収束 + Codex 公式 verify 完了）
+## Background (5-stage design convergence + Codex official verify complete)
 
-本 plugin に至るまでの設計判断の進化を要約として記録する（具体的な棄却案 doc は本 doc 完成時点で削除済、本 doc が単独で完結する形に再整理されている）：
+Summary record of the design judgment evolution leading to this plugin (the specific rejected-alternative docs were deleted at the time this doc was finalized, and this doc is re-organized to stand alone):
 
-1. 初期：host repo 側の predictive guard（hard deny / 章分割等）案 → 設計意図の不一致で撤回
-2. 予防系の soft signal（pragma）案 → 既存 permissions deny で hard enforcement 可能と判明し置換
-3. 予防中心から検知中心へ方針切替（host repo 結合型の検知設計を draft）
-4. host repo 結合型 → 完全分離 plugin 設計に再転換（pattern 自動検知 plugin として draft）
-5. **検知設計の本質的限界（proxy 問題：proxy ≠ rot 本体）を踏まえ、forensic debugger に再再転換（本 doc 初版）**
-6. **Phase C-0 完了**: Codex 公式 hooks docs verify、§3.2 / 付録 B / §10.2 / §11 / §13.1 を公式 spec ベースに書き換え
+1. Early stage: predictive guard on the host repo side (hard deny / chapter splits, etc.) → withdrawn due to mismatch in design intent
+2. Soft-signal preventive approach (pragma) → replaced after it was clarified that hard enforcement is possible with existing permissions deny
+3. Switched policy from prevention-centric to detection-centric (drafted a host repo-coupled detection design)
+4. Switched again from host repo-coupled to a fully separated plugin design (drafted as a pattern auto-detection plugin)
+5. **Considering the essential limit of detection design (the proxy problem: proxy ≠ rot itself), pivoted again to a forensic debugger (initial version of this doc)**
+6. **Phase C-0 complete**: Verified Codex official hooks docs, rewrote §3.2 / Appendix B / §10.2 / §11 / §13.1 on the basis of the official spec
 
-各段階は建設的レビューを起点とした self-correction の積み重ね。誇大主張（「正確検知できる」「pattern で rot を判定できる」等）を一つずつ排除し、honest capability に削ぎ落とした結果として現設計に到達。本 doc が最も成熟した形。
+Each stage is an accumulation of self-correction triggered by constructive review. By eliminating overstatements ("can accurately detect", "can judge rot from patterns", etc.) one by one and reducing to honest capability, the current design was reached. This doc is the most mature form.

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs / chores
+
+- README now covers Stats / Theme / Config screens (screenshots added).
+- All Japanese-language documentation translated to English to make
+  the project fully accessible internationally: `docs/DESIGN.md`,
+  `docs/DESIGN_FORENSIC_UX.md`, `docs/OBSERVATIONS.md`. Three
+  intentionally-Japanese test fixtures in `core/references.py` and
+  `tests/unit/test_references.py` / `test_recorder.py` are
+  preserved — they exist specifically to verify non-ASCII handling
+  in the path extractor and recorder, so translating them would
+  defeat the test.
+- Screenshot capture tool now post-processes `Path.home()` and
+  `REPO` paths into synthetic `/Users/dev/...` values so the
+  Doctor and Config screen SVGs don't expose the contributor's
+  real machine path. Re-captured the four affected SVGs.
+- Test fixtures `tests/unit/test_normalizer.py` and
+  `test_codex_adapter.py` swapped `/Users/work/proj` →
+  `/Users/dev/proj` for consistency with the rest of the
+  synthetic seed data.
+- Status table phase note for TUI 4.A extended to mention the
+  responsive vertical-centring fix shipped in v0.16.3.
+
 ## [0.16.3] — 2026-05-16 — Responsive vertical centering for short-content screens
 
 ### Fixed
@@ -835,7 +857,7 @@ textual is installed in dev.
   now recognises the CLI output fingerprint and excises it before
   treating the prompt as a grounding source — the detector no longer
   silently consumes its own warnings. The token extractor restricts
-  path content to ASCII (so Japanese prose like "メール/電話/長い hex"
+  path content to ASCII (so non-ASCII prose like CJK / Cyrillic / Arabic
   no longer matches as a path) and preserves URL schemes
   (`https://github.com/...` survives intact instead of degenerating
   to `//github.com/...`). 27 new unit tests pin these behaviours.

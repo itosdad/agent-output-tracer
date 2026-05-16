@@ -35,7 +35,7 @@ def _codex_base(**over):
     base = {
         "hook_event_name": "user_prompt_submit",
         "session_id": "cdx-001",
-        "cwd": "/Users/work/proj",
+        "cwd": "/Users/dev/proj",
         "model": "gpt-5",
         "permission_mode": "default",
         "transcript_path": "/tmp/codex.jsonl",

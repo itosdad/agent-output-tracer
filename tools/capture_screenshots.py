@@ -254,6 +254,37 @@ async def _capture(out_dir: Path, theme: str, suffix: str) -> None:
         shutil.rmtree(data_dir, ignore_errors=True)
 
 
+def _redact_real_paths(svg_dir: Path) -> int:
+    """Substitute the capturing user's real machine paths with the
+    synthetic ones used elsewhere in the seed data.
+
+    Doctor reads `hooks.json` from the live install location and Config
+    reads `~/.config/aot/config.toml` — both call into the runtime
+    environment and bypass the synthetic seed in `_seed_data`. Rather
+    than thread a demo flag through every command, we strip the leak
+    here as a final post-process step. Returns the number of files
+    modified.
+    """
+    home = str(Path.home())  # e.g. /Users/work
+    cwd = str(REPO)  # e.g. /Users/work/work/agent-output-tracer
+    # Order matters: replace the longer, repo-specific prefix first so
+    # the home-replacement doesn't truncate it mid-string.
+    substitutions = [
+        (cwd, "/Users/dev/work/agent-output-tracer"),
+        (home, "/Users/dev"),
+    ]
+    changed = 0
+    for svg in svg_dir.glob("*.svg"):
+        text = svg.read_text()
+        new = text
+        for needle, replacement in substitutions:
+            new = new.replace(needle, replacement)
+        if new != text:
+            svg.write_text(new)
+            changed += 1
+    return changed
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -267,6 +298,10 @@ def main() -> None:
 
     asyncio.run(_capture(args.out, theme="aot-codex", suffix="codex"))
     asyncio.run(_capture(args.out, theme="aot-claude", suffix="claude"))
+
+    redacted = _redact_real_paths(args.out)
+    if redacted:
+        print(f"# redacted real paths in {redacted} svg(s)")
 
     written = sorted(args.out.glob("*.svg"))
     for p in written:

@@ -125,6 +125,15 @@ verbatim. `y` yanks the event as JSON; `n` attaches a note.
 overridable via the `:` command palette (`:find repeated-reads 5`).
 Enter on a match opens the source event.
 
+### Stats — one-screen session metrics
+
+<p align="center">
+  <img src="docs/img/stats-claude.svg" width="900" alt="Stats screen">
+</p>
+
+Tool mix, prompt counts, byte totals, anomaly counters, and token usage
+for one session — all in a single scrollable card, no horizontal paging.
+
 ### Doctor — recorder pipeline self-diagnostic
 
 <p align="center">
@@ -134,6 +143,20 @@ Enter on a match opens the source event.
 `runtime` / `data_dir` / `recent_sessions` / `hooks_wiring` — each
 labelled `✓` / `⚠` / `✗` against the active theme's success / warning /
 error palette. If anything is wrong, the `fix:` line tells you what to do.
+
+### Theme & Config — engine identity and sticky defaults
+
+<table>
+<tr>
+<td><img src="docs/img/theme-claude.svg" alt="Theme picker (Claude)"></td>
+<td><img src="docs/img/config-claude.svg" alt="Config viewer (Claude)"></td>
+</tr>
+</table>
+
+`Theme` cycles between **aot-codex** (cyan) and **aot-claude** (salmon).
+`Config` shows the sticky defaults persisted to `~/.config/aot/config.toml`
+(last Find vocab, Trace phrase, Search regex, Export knobs); press `c`
+to clear, `r` to re-read from disk.
 
 ---
 
@@ -238,7 +261,7 @@ masked before write.
 | TUI 1 — screen-based navigation | Home → Sessions → Timeline → Event Detail | ✅ |
 | TUI 2 — power features | Help / Stats / Doctor / Find / Trace / Search / Note / Export / `:` palette / live follow | ✅ |
 | TUI 3 — engine identity | Two themes (codex / claude), auto-detect, sticky defaults, S/T/F sub-actions, visual polish | ✅ |
-| TUI 4.A — bug sweep + UX foundation | Theme override fix, menu preview pane, `y` yank, formal display name, OhMyZsh-style banner | ✅ |
+| TUI 4.A — bug sweep + UX foundation | Theme override fix, menu preview pane, `y` yank, formal display name, OhMyZsh-style banner, responsive vertical centring | ✅ |
 | **TUI 4.B** — Diagnostic Brief | one-screen executive summary per session (verdict, top anomalies, hot files, sparkline) | 🔜 next |
 | TUI 4.C — Context Reconstruction | "what did the agent actually see when it answered X?" view | 🔜 |
 | TUI 4.D — Cross-session compare | diff two sessions, surface recurring anomalies | 🔜 |

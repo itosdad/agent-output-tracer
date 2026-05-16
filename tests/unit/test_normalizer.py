@@ -39,7 +39,7 @@ def test_user_prompt_basic():
     raw = {
         "session_id": "abc123",
         "transcript_path": "/tmp/t.jsonl",
-        "cwd": "/Users/work/proj",
+        "cwd": "/Users/dev/proj",
         "hook_event_name": "UserPromptSubmit",
         "user_prompt": "Implement FooBar component",
     }
@@ -50,7 +50,7 @@ def test_user_prompt_basic():
     assert out["engine"] == ENGINE_ID
     assert out["event_type"] == "user_prompt"
     assert out["session_id"] == "abc123"
-    assert out["cwd"] == "/Users/work/proj"
+    assert out["cwd"] == "/Users/dev/proj"
     assert out["user_prompt_text"] == "Implement FooBar component"
     assert out["ts"] == FIXED_NOW.isoformat(timespec="milliseconds")
     assert out["raw_event"] == raw
@@ -81,14 +81,14 @@ def test_pre_tool_read_extracts_file_path():
         "cwd": "/cwd",
         "hook_event_name": "PreToolUse",
         "tool_name": "Read",
-        "tool_input": {"file_path": "/Users/work/proj/foo.md"},
+        "tool_input": {"file_path": "/Users/dev/proj/foo.md"},
     }
     out = normalize_event(raw, now=_fixed_now)
     assert out is not None
     assert out["event_type"] == "pre_tool"
     assert out["tool_name"] == "Read"
-    assert out["tool_input"] == {"file_path": "/Users/work/proj/foo.md"}
-    assert out["paths"] == ["/Users/work/proj/foo.md"]
+    assert out["tool_input"] == {"file_path": "/Users/dev/proj/foo.md"}
+    assert out["paths"] == ["/Users/dev/proj/foo.md"]
     assert out["command"] is None
 
 
