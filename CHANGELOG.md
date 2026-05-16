@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.8] — 2026-05-16 — Hook commands fail-safe; drop spurious top-level `hooks.json`
+
+### Fixed
+
+- **Codex was blocking user input on every UserPromptSubmit because
+  the hook command resolved to a missing file.** v0.16.6 emitted a
+  `plugin-dist/hooks.json` at the plugin root with relative paths
+  (`./hooks/user_prompt_submit.py`). The Codex install kept that
+  top-level file but the relative resolution against Codex's actual
+  CWD didn't land on the cached `hooks/` subdir, so `python3` exited
+  with code 2 ("file not found") and Codex treated the non-zero exit
+  as a hard block on user input — the opposite of the plugin's
+  observation-only contract.
+
+  Root cause: I added the top-level `hooks.json` based on misreading
+  the OpenAI figma plugin's structure. The Codex official spec
+  (https://developers.openai.com/codex/plugins/build) states that the
+  **default hook file is `hooks/hooks.json`** and that Codex sets
+  `$CLAUDE_PLUGIN_ROOT` for compatibility. The whole top-level
+  variant was unnecessary.
+
+  Reverted: removed `emit_codex_hooks_json` from the sync tool and
+  the resulting `plugin-dist/hooks.json` is gone. Codex now finds
+  `plugin-dist/hooks/hooks.json` by default just like Claude.
+
+- **Hardened every hook command to fail-safe under all
+  conditions.** Even with the correct path, any future hiccup —
+  missing Python, syntax error, permission glitch — would surface as
+  a non-zero exit and Codex would block again. Wrapped every command
+  in `{ python3 …/script.py || true ; } >/dev/null 2>&1` so the hook
+  exit code is always 0 and stdout/stderr never leak into Codex's
+  feedback channel. Matches the plugin's "exit 0 unconditionally"
+  promise documented in `hooks/_runner.py`.
+
+  Emergency unblock for v0.16.6 install (no code update needed):
+  set `enabled = false` for the plugin entry in `~/.codex/config.toml`.
+  Permanent fix: `codex plugin marketplace remove …` →
+  `… add …` → restart Codex (pulls v0.16.8).
+
 ## [0.16.7] — 2026-05-16 — Engine detector keys on `transcript_path` (Codex no longer mistagged as Claude)
 
 ### Fixed
