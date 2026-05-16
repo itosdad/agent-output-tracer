@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.6] — 2026-05-16 — Codex hooks: top-level `hooks.json` with relative paths
+
+### Fixed
+
+- **v0.16.5 got the plugin installed for Codex but hooks still didn't
+  fire.** Two engine differences in how hooks are discovered and
+  executed:
+  - Codex looks for `hooks.json` at the **plugin root**, not in
+    `hooks/hooks.json` (Claude's convention). Codex silently saw no
+    hooks.json and registered zero callbacks.
+  - Codex doesn't substitute `${CLAUDE_PLUGIN_ROOT}` in command
+    strings. The OpenAI-bundled `figma` plugin uses relative paths
+    (`./scripts/...`) because Codex runs hooks with CWD set to the
+    plugin root.
+
+  Both fixes are in `tools/sync_plugin_dist.sh`: after copying
+  `hooks/` into `plugin-dist/`, the script also emits a
+  `plugin-dist/hooks.json` derived from `hooks/hooks.json` with the
+  `${CLAUDE_PLUGIN_ROOT}` env var rewritten to `.`. Claude continues
+  to read `plugin-dist/hooks/hooks.json` via its conventional
+  subdirectory lookup; Codex now finds `plugin-dist/hooks.json` at the
+  root. The Python hook scripts referenced by both files are
+  identical (they recover the plugin root via `__file__` so they
+  don't depend on env var substitution).
+
 ## [0.16.5] — 2026-05-16 — Codex marketplace install: `plugin-dist/` distribution dir
 
 ### Fixed

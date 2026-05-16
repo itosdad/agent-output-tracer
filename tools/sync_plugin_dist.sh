@@ -46,10 +46,39 @@ sync_one() {
   fi
 }
 
+# Codex 0.130 looks for hooks at the plugin root (`./hooks.json`), not in
+# the `hooks/` subdir (which is Claude's convention). It also runs hook
+# commands with CWD = plugin root, so it doesn't substitute the
+# `${CLAUDE_PLUGIN_ROOT}` env var that Claude's hooks.json relies on.
+# Generate a Codex-shaped variant of the same hook configuration by
+# rewriting that env var to `.` and placing the result at
+# `plugin-dist/hooks.json`. The Python scripts referenced by both
+# variants are identical (they recover the plugin root via `__file__`).
+emit_codex_hooks_json() {
+  python3 -c '
+import json, sys
+src, dst = sys.argv[1], sys.argv[2]
+with open(src) as f:
+    data = json.load(f)
+def rewrite(obj):
+    if isinstance(obj, dict):
+        return {k: rewrite(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [rewrite(v) for v in obj]
+    if isinstance(obj, str):
+        return obj.replace("${CLAUDE_PLUGIN_ROOT}", ".")
+    return obj
+with open(dst, "w") as f:
+    json.dump(rewrite(data), f, indent=2)
+    f.write("\n")
+' "hooks/hooks.json" "$DIST/hooks.json"
+}
+
 case "$MODE" in
   sync|"")
     rm -rf "$DIST"
     for src in "${sources[@]}"; do sync_one "$src"; done
+    emit_codex_hooks_json
     echo "synced $DIST/ from canonical sources"
     ;;
   --check)
@@ -58,6 +87,7 @@ case "$MODE" in
     cp -R "$DIST" "$tmp/dist-before"
     rm -rf "$DIST"
     for src in "${sources[@]}"; do sync_one "$src"; done
+    emit_codex_hooks_json
     if ! diff -r "$tmp/dist-before" "$DIST" >/dev/null 2>&1; then
       echo "drift detected: $DIST/ is out of sync with canonical sources" >&2
       diff -r "$tmp/dist-before" "$DIST" >&2 || true
