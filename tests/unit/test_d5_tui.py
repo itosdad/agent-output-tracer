@@ -129,6 +129,34 @@ def test_app_can_be_constructed_with_session(plugin_data_dir):
 
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
+def test_initial_theme_prefers_data_dir_path_over_env_var(monkeypatch, tmp_path):
+    """`--data-dir ~/.codex/...` from inside a Claude Code session must
+    pick the Codex theme: the explicit data-dir path beats
+    `CLAUDE_PLUGIN_DATA` env. Regression for the case where users open
+    a Codex data dir from within Claude Code and saw the salmon Claude
+    theme instead of cyan Codex."""
+    from tui.app import AOTApp
+    from tui.themes import CLAUDE_THEME, CODEX_THEME
+
+    codex_dir = tmp_path / "Users" / "dev" / ".codex" / "plugins" / "data" / "aot"
+    codex_dir.mkdir(parents=True)
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path / "fake-claude"))
+    monkeypatch.delenv("CODEX_PLUGIN_DATA", raising=False)
+    monkeypatch.delenv("CODEX_PLUGIN_ROOT", raising=False)
+
+    app = AOTApp(None, data_dir=codex_dir)
+    assert app._initial_theme_name() == CODEX_THEME.name
+
+    # Mirror case: --data-dir under .claude/ from inside a Codex shell
+    claude_dir = tmp_path / "Users" / "dev" / ".claude" / "plugins" / "data" / "aot"
+    claude_dir.mkdir(parents=True)
+    monkeypatch.delenv("CLAUDE_PLUGIN_DATA", raising=False)
+    monkeypatch.setenv("CODEX_PLUGIN_DATA", str(tmp_path / "fake-codex"))
+    app2 = AOTApp(None, data_dir=claude_dir)
+    assert app2._initial_theme_name() == CLAUDE_THEME.name
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
 def test_home_screen_constructs():
     from tui.screens.home import HomeScreen
 

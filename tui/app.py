@@ -93,7 +93,14 @@ class AOTApp(App):
         1. `--session <sid>` → THAT session's engine. Explicit user
            intent: "I want to look at this session, theme it for that."
 
-        2. **Plugin-host env var** → the engine whose CLI is hosting
+        2. `--data-dir <path>` whose path contains `.codex/` or
+           `.claude/` → infer engine from the path. The user
+           explicitly pointed `aot` at a specific engine's data
+           directory, so the host CLI's identity is irrelevant.
+           Common case: running `aot --data-dir ~/.codex/...` from
+           inside a Claude Code session to inspect Codex captures.
+
+        3. **Plugin-host env var** → the engine whose CLI is hosting
            `aot tui` *right now*. `CLAUDE_PLUGIN_DATA` is set by
            Claude Code, `CODEX_PLUGIN_DATA` by Codex. This is the
            strongest "where am I now" signal — stronger than the
@@ -101,11 +108,11 @@ class AOTApp(App):
            stale Codex run from earlier in the day while the operator
            has since switched engines.
 
-        3. Newest captured session's engine. Useful when running `aot
+        4. Newest captured session's engine. Useful when running `aot
            tui` from a bare shell outside either CLI — picks up
            whichever engine the user was last debugging.
 
-        4. Codex as universal default (cyan plays well with the widest
+        5. Codex as universal default (cyan plays well with the widest
            range of terminal palettes).
         """
         # 1) explicit session wins
@@ -117,12 +124,20 @@ class AOTApp(App):
                     return theme_for_engine(engine)
             except Exception:
                 pass
-        # 2) plugin-host env var — "which CLI am I inside right now"
+        # 2) explicit --data-dir path tells us which engine the user
+        #    is targeting, regardless of which CLI is hosting `aot`.
+        if self._data_dir is not None:
+            data_dir_str = str(self._data_dir).lower()
+            if "/.codex/" in data_dir_str or "\\.codex\\" in data_dir_str:
+                return theme_for_engine("codex")
+            if "/.claude/" in data_dir_str or "\\.claude\\" in data_dir_str:
+                return theme_for_engine("claude-code")
+        # 3) plugin-host env var — "which CLI am I inside right now"
         if os.environ.get("CLAUDE_PLUGIN_DATA") or os.environ.get("CLAUDE_PLUGIN_ROOT"):
             return theme_for_engine("claude-code")
         if os.environ.get("CODEX_PLUGIN_DATA") or os.environ.get("CODEX_PLUGIN_ROOT"):
             return theme_for_engine("codex")
-        # 3) newest session
+        # 4) newest session
         try:
             sessions = list_sessions(data_dir=self._data_dir)
         except Exception:
@@ -131,7 +146,7 @@ class AOTApp(App):
             engine = sessions[0].get("engine") or ""
             if engine:
                 return theme_for_engine(engine)
-        # 4) universal default
+        # 5) universal default
         return theme_for_engine("")
 
 

@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.10] — 2026-05-16 — `--data-dir` path overrides host-CLI env in initial theme pick
+
+### Fixed
+
+- **Running `aot --data-dir ~/.codex/... tui` from inside a Claude
+  Code session painted the TUI with the Claude (salmon) theme even
+  though every captured session in that data dir was Codex.** The
+  initial-theme heuristic in `AOTApp._initial_theme_name` ranked the
+  plugin-host env var (`CLAUDE_PLUGIN_DATA`) above the actual data
+  dir. The env var tells us "which CLI is hosting `aot`," which is
+  the right signal for the common case of bare `aot tui`, but when
+  the user explicitly points `aot` at the other engine's data dir
+  with `--data-dir`, that signal becomes wrong.
+
+  Inserted a new precedence step: if `--data-dir` is given and its
+  path contains `.codex/` or `.claude/`, derive the engine from the
+  path. The host-CLI env var is consulted only when no explicit
+  `--data-dir` is set. Other precedence steps unchanged.
+
+  New precedence order:
+  1. `--session` (most specific)
+  2. `--data-dir` path containing `.codex/` or `.claude/` (← new)
+  3. Plugin-host env var (`CLAUDE_PLUGIN_DATA` / `CODEX_PLUGIN_DATA`)
+  4. Newest captured session's engine
+  5. Codex default
+
+### Tests
+
+- 1 new test `test_initial_theme_prefers_data_dir_path_over_env_var`
+  exercises both directions: `--data-dir ~/.codex/...` under
+  `CLAUDE_PLUGIN_DATA` → Codex theme; `--data-dir ~/.claude/...`
+  under `CODEX_PLUGIN_DATA` → Claude theme.
+- 515 tests pass (was 514).
+
 ## [0.16.9] — 2026-05-16 — Sessions list repairs stale `metadata.engine` at read time
 
 ### Fixed
