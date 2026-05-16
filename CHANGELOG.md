@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.9] — 2026-05-16 — Sessions list repairs stale `metadata.engine` at read time
+
+### Fixed
+
+- **Older Codex sessions still rendered as Claude Code in the
+  Sessions list.** v0.16.7 corrected the runtime engine detector but
+  sessions written by pre-v0.16.7 recorders have `metadata.engine`
+  burned in as `claude-code` (the recorder writes engine once from
+  the first event and never updates it). The TUI Sessions list, its
+  preview pane, and `load_metadata()` all trusted that field
+  verbatim.
+
+  Added a read-time correction in `core/session_io.py`: when reading
+  metadata for the listing or via `load_metadata()`, peek at the
+  first line of `events.jsonl` and consult
+  `raw_event.transcript_path`. If the path points at `~/.codex/...`
+  but metadata says `claude-code` (or vice versa), the in-memory dict
+  is patched to match the transcript-path-derived truth. On-disk
+  files are not rewritten — this is a display-time override.
+
+  Mirror of the v0.16.2 Timeline fix (which already derived engine
+  from the event stream rather than metadata). The Sessions screen
+  and the per-session preview pane now agree with Timeline.
+
+### Tests
+
+- 3 new tests in `tests/unit/test_session_io.py`:
+  - `test_list_sessions_repairs_stale_codex_metadata`
+  - `test_load_metadata_repairs_stale_codex_metadata`
+  - `test_list_sessions_leaves_claude_session_untouched`
+- 514 tests pass (was 511).
+
 ## [0.16.8] — 2026-05-16 — Hook commands fail-safe; drop spurious top-level `hooks.json`
 
 ### Fixed

@@ -67,15 +67,70 @@ def load_events(session_id, *, data_dir=None):
 def load_metadata(session_id, *, data_dir=None):
     """Load metadata.json for the session. Returns None on missing /
     corrupt metadata. Raises SessionNotFoundError if the session dir
-    itself does not exist."""
+    itself does not exist.
+
+    `metadata.engine` is patched in-memory when it disagrees with the
+    transcript-path hint (same correction as `list_sessions`)."""
     sdir = session_dir_path(session_id, data_dir=data_dir)
     meta_file = sdir / METADATA_FILENAME
     if not meta_file.exists():
         return None
     try:
-        return json.loads(meta_file.read_text(encoding="utf-8"))
+        meta = json.loads(meta_file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+    if isinstance(meta, dict):
+        hint = _engine_hint_from_first_event(sdir)
+        if hint is not None and meta.get("engine") != hint:
+            meta["engine"] = hint
+    return meta
+
+
+_ENGINE_FROM_TRANSCRIPT = (
+    (".codex/", "codex"),
+    (".codex\\", "codex"),
+    (".claude/", "claude-code"),
+    (".claude\\", "claude-code"),
+)
+
+
+def _engine_hint_from_first_event(session_dir):
+    """Peek at the first event of `events.jsonl` and derive the engine
+    from `raw_event.transcript_path`. Returns "codex" / "claude-code",
+    or None when the file is missing / malformed / has no usable hint.
+
+    This is a cheap O(1) read used to repair stale `metadata.engine`
+    values written by older versions of the recorder whose engine
+    detector misclassified the session (e.g. Codex events tagged
+    `engine: claude-code` prior to v0.16.7). `transcript_path` is the
+    only field whose value is forced by each engine's on-disk layout,
+    so it survives runtime detector bugs.
+    """
+    events_file = session_dir / EVENTS_FILENAME
+    if not events_file.exists():
+        return None
+    try:
+        with events_file.open("r", encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    ev = json.loads(stripped)
+                except (ValueError, TypeError):
+                    return None
+                raw = ev.get("raw_event") or {}
+                tp = raw.get("transcript_path") if isinstance(raw, dict) else None
+                if not isinstance(tp, str) or not tp:
+                    return None
+                lowered = tp.lower()
+                for needle, engine in _ENGINE_FROM_TRANSCRIPT:
+                    if needle in lowered:
+                        return engine
+                return None
+    except OSError:
+        return None
+    return None
 
 
 def list_sessions(*, data_dir=None):
@@ -84,6 +139,12 @@ def list_sessions(*, data_dir=None):
     Each entry is the metadata.json dict if present, otherwise a small
     stub `{session_id, ts_end: None}`. Returns an empty list when the
     sessions root does not yet exist.
+
+    `metadata.engine` is patched in-memory when it disagrees with the
+    transcript-path-derived hint from the session's first event. This
+    repairs sessions written by pre-v0.16.7 recorders that misdetected
+    Codex events as `claude-code` (the on-disk metadata stays
+    untouched — the override happens at read time only).
     """
     try:
         root = _sessions_root(data_dir)
@@ -109,6 +170,11 @@ def list_sessions(*, data_dir=None):
             meta = {"session_id": sid, "ts_end": None, "ts_start": None}
         else:
             meta.setdefault("session_id", sid)
+
+        hint = _engine_hint_from_first_event(entry)
+        if hint is not None and meta.get("engine") != hint:
+            meta["engine"] = hint
+
         out.append(meta)
 
     # Sort by ts_end desc, falling back to ts_start, then session_id.

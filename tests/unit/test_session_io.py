@@ -195,3 +195,88 @@ def test_load_events_explicit_data_dir(tmp_path):
 def test_load_events_unsafe_session_id_rejected(plugin_data_dir):
     with pytest.raises(SessionNotFoundError):
         load_events("../escape", data_dir=plugin_data_dir)
+
+
+def _seed_stale_codex_session(plugin_data_dir, sid):
+    """Recreate the pre-v0.16.7 failure mode: events.jsonl was written
+    with the wrong runtime detector so every event (and the derived
+    metadata.engine) say `claude-code`, but `raw_event.transcript_path`
+    still points at `~/.codex/sessions/...` — the on-disk truth."""
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",  # ← bug-era misdetection
+            "event_type": "user_prompt",
+            "session_id": sid,
+            "ts": "2026-05-01T00:00:00.000+00:00",
+            "cwd": "/proj",
+            "user_prompt_text": "hello from codex",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {
+                "transcript_path": "/Users/dev/.codex/sessions/" + sid + ".jsonl",
+                "hook_event_name": "UserPromptSubmit",
+            },
+        },
+        data_dir=plugin_data_dir,
+    )
+
+
+def test_list_sessions_repairs_stale_codex_metadata(plugin_data_dir):
+    """Sessions written by pre-v0.16.7 recorders carry
+    `metadata.engine = "claude-code"` even for Codex sessions. The
+    transcript-path hint in the first event must override that at
+    read time."""
+    _seed_stale_codex_session(plugin_data_dir, "stale-codex")
+    sessions = list_sessions(data_dir=plugin_data_dir)
+    target = next(s for s in sessions if s["session_id"] == "stale-codex")
+    assert target["engine"] == "codex"
+
+
+def test_load_metadata_repairs_stale_codex_metadata(plugin_data_dir):
+    _seed_stale_codex_session(plugin_data_dir, "stale-codex-2")
+    meta = load_metadata("stale-codex-2", data_dir=plugin_data_dir)
+    assert meta is not None
+    assert meta["engine"] == "codex"
+
+
+def test_list_sessions_leaves_claude_session_untouched(plugin_data_dir):
+    """A genuinely-Claude session whose first event carries a
+    `~/.claude/...` transcript_path must stay tagged claude-code."""
+    _seed(plugin_data_dir, sid="genuine-claude", n_events=1)
+    # _seed writes raw_event = {} so the hint helper returns None and
+    # we keep the recorded `engine: claude-code`. Add one more event
+    # with an explicit Claude-side transcript_path to be unambiguous.
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",
+            "event_type": "user_prompt",
+            "session_id": "with-tp-claude",
+            "ts": "2026-05-01T00:00:00.000+00:00",
+            "cwd": "/proj",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {
+                "transcript_path": "/Users/dev/.claude/projects/with-tp-claude.jsonl",
+            },
+        },
+        data_dir=plugin_data_dir,
+    )
+    sessions = list_sessions(data_dir=plugin_data_dir)
+    for s in sessions:
+        if s["session_id"] in ("genuine-claude", "with-tp-claude"):
+            assert s["engine"] == "claude-code"
