@@ -22,6 +22,16 @@ from tui.router import AOTScreen
 class FindResultsScreen(AOTScreen):
     TITLE = "find"
 
+    DEFAULT_CSS = """
+    FindResultsScreen > .body {
+        align: center middle;
+    }
+    FindResultsScreen #find-results-list {
+        width: 100%;
+        max-width: 120;
+    }
+    """
+
     BINDINGS = [
         Binding("enter", "open", "detail", show=False),
         Binding("r", "refresh", "refresh", show=False),

@@ -26,6 +26,18 @@ from tui.router import AOTScreen
 
 
 class EventDetailScreen(AOTScreen):
+    DEFAULT_CSS = """
+    /* Event Detail can be long (raw JSON, tool responses) or short
+     * (a quick user_prompt). Centre + auto-height handles both. */
+    EventDetailScreen > .body {
+        align: center middle;
+    }
+    EventDetailScreen #event-detail {
+        width: 100%;
+        max-width: 120;
+    }
+    """
+
     BINDINGS = [
         Binding("r", "toggle_raw", "raw", show=False),
         Binding("s", "toggle_sanitised", "sanitised", show=False),

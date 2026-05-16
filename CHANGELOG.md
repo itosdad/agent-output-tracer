@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.3] — 2026-05-16 — Responsive vertical centering for short-content screens
+
+### Fixed
+
+- **Body content on short-content screens (Home / Sessions / Stats /
+  Doctor / Theme / Config / Trace / Search / Find / TraceResults /
+  FindResults / SearchResults / EventDetail) was not properly
+  positioned — content rendered at unpredictable y-offsets, often
+  with 15+ rows of dead space above it.** Two independent root
+  causes:
+
+  1. **`base.tcss` was overriding per-screen `align` directives.**
+     Textual's CSS cascade loads `DEFAULT_CSS` first, then `CSS_PATH`
+     (`base.tcss`). At equal specificity, the later rule wins — so
+     `AOTScreen > .body { align: left top; }` in `base.tcss` was
+     beating every subclass's `DEFAULT_CSS` override. Removed the
+     blanket `align` from `base.tcss`; each screen now declares its
+     own positioning in `DEFAULT_CSS`.
+
+  2. **`with Vertical():` inside `compose_body()` mounted the
+     Vertical as a sibling of `.body`, not as its child.** Textual's
+     `with` form relies on the compose-time widget stack, which is
+     only active inside `compose()` itself — not in helper methods
+     like `compose_body()`. Switched to explicit `Vertical(...,
+     id="wrap")` construction in `home.py`, `sessions.py`,
+     `trace.py`, `search.py` so the wrap mounts as a real child of
+     `.body`.
+
+  Net effect: short-content screens now centre vertically inside
+  the viewport (`align: center middle`) while filling screens
+  (Timeline, EventDetail, FindResults, SearchResults) still expand
+  to use available space via `height: auto`.
+
+### Changed
+
+- **Responsive max-width caps on every screen's content wrap.**
+  - Home, Sessions, Timeline, EventDetail, FindResults,
+    SearchResults: `max-width: 100–120` (data-dense)
+  - Stats, Doctor, Find, TraceResults: `max-width: 72–96` (medium)
+  - Trace, Search, Theme, Config: `max-width: 72–80` (compact)
+
+  Content stays readable on wide terminals (no full-width sprawl)
+  and still flows correctly on the half-desktop 72×24 target.
+
+### Screenshots
+
+- Regenerated all 14 screenshot pairs (Claude + Codex × 7 screens)
+  to reflect the new centred layout. Verified content y-offsets:
+  - Theme / FindResults (very short): y=386–410 — centred
+  - Doctor / EventDetail (medium): y=215–532
+  - Timeline / Stats (longer): y=264–532 / y=118–654
+- Added Stats / Theme / Config screenshot pairs (previously
+  missing).
+
 ## [0.16.2] — 2026-05-16 — Theme robustness + top alignment + per-engine semantic colours
 
 ### Fixed

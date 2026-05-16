@@ -32,19 +32,18 @@ AOTScreen > .body {
     height: 1fr;
     width: 100%;
     padding: 1 2;
-    /* Anchor screen content to the top-left. Without this, a single
-     * short widget inside the body container (e.g. the Stats card,
-     * the Doctor report, the Find vocab list before the user has
-     * scrolled) sits in the visual middle of the viewport — Textual's
-     * default vertical alignment for a partially-filled container. */
-    align: left top;
-    content-align: left top;
-}
-
-/* The Vertical wrapper used by Home / Sessions / Trace / Search /
- * Config to stack multiple widgets must respect the same anchor so
- * the banner + list + preview don't drift downward. */
-AOTScreen > .body Vertical {
-    align: left top;
-    content-align: left top;
+    /* No `align` rule here — Textual's CSS_PATH loads after every
+     * widget's DEFAULT_CSS, so anything declared here would beat
+     * per-screen subclass overrides at equal specificity. Each
+     * screen's own DEFAULT_CSS sets its alignment explicitly:
+     *
+     *   - Compact screens (Stats / Doctor / Theme / Config /
+     *     Trace / Search / Find vocab / TraceResults / Home):
+     *     `align: center middle` — sit in the visual middle.
+     *
+     *   - Filling screens (Timeline / Sessions / EventDetail /
+     *     FindResults / SearchResults): natural top-left
+     *     anchoring with explicit `height: 1fr` on the content
+     *     widget so it fills, plus a `max-width` cap.
+     */
 }

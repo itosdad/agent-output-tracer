@@ -25,6 +25,20 @@ from tui.router import AOTScreen
 class TraceScreen(AOTScreen):
     TITLE = "trace"
 
+    DEFAULT_CSS = """
+    /* Single label + input — centre vertically. The wrap has auto
+     * height (sum of label + input) so the parent's `align: center
+     * middle` actually positions it in the visual middle. */
+    TraceScreen > .body {
+        align: center middle;
+    }
+    TraceScreen #trace-wrap {
+        width: 100%;
+        max-width: 80;
+        height: auto;
+    }
+    """
+
     BINDINGS = [
         Binding("enter", "submit", "trace", show=False),
     ]
@@ -58,13 +72,15 @@ class TraceScreen(AOTScreen):
         ]
 
     def compose_body(self):
-        with Vertical():
-            yield Static(
+        yield Vertical(
+            Static(
                 "Phrase to trace back to its source:",
                 id="trace-label",
                 markup=False,
-            )
-            yield Input(placeholder="e.g. hooks_wiring", id="trace-input")
+            ),
+            Input(placeholder="e.g. hooks_wiring", id="trace-input"),
+            id="trace-wrap",
+        )
 
     def on_mount(self) -> None:
         inp = self.query_one(Input)

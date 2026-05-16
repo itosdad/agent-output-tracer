@@ -22,6 +22,21 @@ from tui.router import AOTScreen
 class StatsScreen(AOTScreen):
     TITLE = "stats"
 
+    DEFAULT_CSS = """
+    /* Stats is a single short card. Centre it vertically so it
+     * doesn't float at the top with 20+ rows of dead space below.
+     * max-width caps the card on wide terminals — readability over
+     * full-width stretching. */
+    StatsScreen > .body {
+        align: center middle;
+    }
+    StatsScreen #stats-body {
+        width: 100%;
+        max-width: 96;
+        height: auto;
+    }
+    """
+
     BINDINGS = [
         Binding("r", "refresh", "refresh", show=False),
     ]

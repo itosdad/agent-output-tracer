@@ -19,6 +19,18 @@ from tui.themes import CLAUDE_THEME, CODEX_THEME
 class ThemeScreen(AOTScreen):
     TITLE = "theme"
 
+    DEFAULT_CSS = """
+    /* Theme picker is two rows. Centre + cap width. */
+    ThemeScreen > .body {
+        align: center middle;
+    }
+    ThemeScreen #theme-list {
+        width: 100%;
+        max-width: 72;
+        height: auto;
+    }
+    """
+
     BINDINGS = [
         Binding("enter", "apply", "apply", show=False),
     ]

@@ -223,6 +223,33 @@ async def _capture(out_dir: Path, theme: str, suffix: str) -> None:
             await pilot.press("enter")
             await pilot.pause()
             app.save_screenshot(str(out_dir / f"doctor-{suffix}.svg"))
+
+            # Doctor → back → Stats (4)
+            await pilot.press("escape")
+            await pilot.pause()
+            ol = app.screen.query_one(OptionList)
+            ol.highlighted = 4
+            await pilot.press("enter")
+            await pilot.pause()
+            app.save_screenshot(str(out_dir / f"stats-{suffix}.svg"))
+
+            # Stats → back → Theme (6)
+            await pilot.press("escape")
+            await pilot.pause()
+            ol = app.screen.query_one(OptionList)
+            ol.highlighted = 6
+            await pilot.press("enter")
+            await pilot.pause()
+            app.save_screenshot(str(out_dir / f"theme-{suffix}.svg"))
+
+            # Theme → back → Config (7)
+            await pilot.press("escape")
+            await pilot.pause()
+            ol = app.screen.query_one(OptionList)
+            ol.highlighted = 7
+            await pilot.press("enter")
+            await pilot.pause()
+            app.save_screenshot(str(out_dir / f"config-{suffix}.svg"))
     finally:
         shutil.rmtree(data_dir, ignore_errors=True)
 

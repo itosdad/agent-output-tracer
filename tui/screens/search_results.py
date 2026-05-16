@@ -27,6 +27,16 @@ PREVIEW_LIMIT = 120
 class SearchResultsScreen(AOTScreen):
     TITLE = "search"
 
+    DEFAULT_CSS = """
+    SearchResultsScreen > .body {
+        align: center middle;
+    }
+    SearchResultsScreen #search-results-list {
+        width: 100%;
+        max-width: 120;
+    }
+    """
+
     BINDINGS = [
         Binding("enter", "open", "open event", show=False),
         Binding("r", "refresh", "refresh", show=False),

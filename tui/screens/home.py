@@ -110,6 +110,18 @@ class HomeScreen(AOTScreen):
     IS_ROOT = True  # Esc on Home is a no-op — see AOTScreen.action_safe_back.
 
     DEFAULT_CSS = """
+    /* Home stacks banner + picker + preview. The Vertical wrap has
+     * auto height (sum of children) so the body's `align: center
+     * middle` actually centres it instead of being absorbed by a
+     * 1fr-height Vertical filling the container. */
+    HomeScreen > .body {
+        align: center middle;
+    }
+    HomeScreen #home-wrap {
+        width: 100%;
+        max-width: 100;
+        height: auto;
+    }
     HomeScreen #home-banner {
         height: auto;
         padding: 1 1 0 1;
@@ -151,12 +163,20 @@ class HomeScreen(AOTScreen):
         ]
 
     def compose_body(self):
-        with Vertical():
+        # Construct the Vertical explicitly rather than using
+        # `with Vertical():` — the `with` form relies on Textual's
+        # compose-time widget stack, which is only active inside
+        # `compose()` itself, not in helper methods like
+        # `compose_body()`. Using it here previously caused the
+        # Vertical to mount as a SIBLING of `.body` (eating 15 rows
+        # of dead space above the actual content). Explicit
+        # construction makes the wrap a real child of `.body`.
+        yield Vertical(
             # Banner content is rendered against the active theme on
             # mount (we need `self.app` for the accent colour, which
             # isn't available during compose).
-            yield Static("", id="home-banner", markup=False)
-            yield OptionList(
+            Static("", id="home-banner", markup=False),
+            OptionList(
                 _menu_item(
                     "sessions",
                     "Sessions",
@@ -176,8 +196,10 @@ class HomeScreen(AOTScreen):
                 _menu_item("theme", "Theme", "switch engine accent (codex cyan / claude salmon)"),
                 _menu_item("config", "Config", "view and clear sticky defaults"),
                 id="home-list",
-            )
-            yield Static(_render_preview("sessions"), id="home-preview", markup=False)
+            ),
+            Static(_render_preview("sessions"), id="home-preview", markup=False),
+            id="home-wrap",
+        )
 
     def on_mount(self) -> None:
         try:

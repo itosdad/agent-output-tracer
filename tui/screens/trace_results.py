@@ -26,6 +26,18 @@ from tui.router import AOTScreen
 class TraceResultsScreen(AOTScreen):
     TITLE = "trace"
 
+    DEFAULT_CSS = """
+    /* A single trace card. Centre vertically + cap width. */
+    TraceResultsScreen > .body {
+        align: center middle;
+    }
+    TraceResultsScreen #trace-body {
+        width: 100%;
+        max-width: 96;
+        height: auto;
+    }
+    """
+
     BINDINGS = [
         Binding("enter", "open_event", "open source event", show=False),
         Binding("r", "refresh", "refresh", show=False),

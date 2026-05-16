@@ -20,6 +20,18 @@ from tui.router import AOTScreen
 class ConfigScreen(AOTScreen):
     TITLE = "config"
 
+    DEFAULT_CSS = """
+    /* Config viewer is a small card. Centre + cap width. */
+    ConfigScreen > .body {
+        align: center middle;
+    }
+    ConfigScreen #config-body {
+        width: 100%;
+        max-width: 96;
+        height: auto;
+    }
+    """
+
     BINDINGS = [
         Binding("r", "refresh", "refresh", show=False),
         Binding("c", "clear", "clear", show=False),

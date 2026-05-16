@@ -28,6 +28,18 @@ class SessionsScreen(AOTScreen):
     TITLE = "sessions"
 
     DEFAULT_CSS = """
+    /* Sessions list takes the upper portion, preview the lower.
+     * The wrap has auto height (sum of children) so the parent
+     * `align: center middle` actually centres it. Cap width for
+     * readability on wide terminals. */
+    SessionsScreen > .body {
+        align: center middle;
+    }
+    SessionsScreen #sessions-wrap {
+        width: 100%;
+        max-width: 120;
+        height: auto;
+    }
     SessionsScreen #sessions-list {
         height: auto;
         max-height: 55%;
@@ -82,13 +94,17 @@ class SessionsScreen(AOTScreen):
         ]
 
     def compose_body(self):
-        with Vertical():
-            yield OptionList(id="sessions-list")
-            yield Static(
+        # Explicit Vertical construction (not `with Vertical():`) so
+        # the wrap mounts as a child of `.body`, not as its sibling.
+        yield Vertical(
+            OptionList(id="sessions-list"),
+            Static(
                 "(highlight a session to see details)",
                 id="sessions-preview",
                 markup=False,
-            )
+            ),
+            id="sessions-wrap",
+        )
 
     def on_mount(self) -> None:
         self._reload()

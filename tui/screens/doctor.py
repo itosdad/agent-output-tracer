@@ -30,6 +30,19 @@ _STATUS_GLYPH = {"ok": "✓", "warn": "⚠", "fail": "✗"}
 class DoctorScreen(AOTScreen):
     TITLE = "doctor"
 
+    DEFAULT_CSS = """
+    /* Doctor is 4 short status rows. Centre vertically + cap width
+     * for readability on wide terminals. */
+    DoctorScreen > .body {
+        align: center middle;
+    }
+    DoctorScreen #doctor-body {
+        width: 100%;
+        max-width: 96;
+        height: auto;
+    }
+    """
+
     BINDINGS = [
         Binding("r", "refresh", "refresh", show=False),
     ]

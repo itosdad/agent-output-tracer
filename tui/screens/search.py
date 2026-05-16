@@ -22,6 +22,18 @@ from tui.router import AOTScreen
 class SearchScreen(AOTScreen):
     TITLE = "search"
 
+    DEFAULT_CSS = """
+    /* Same pattern as TraceScreen — centre the label + input. */
+    SearchScreen > .body {
+        align: center middle;
+    }
+    SearchScreen #search-wrap {
+        width: 100%;
+        max-width: 80;
+        height: auto;
+    }
+    """
+
     BINDINGS = [
         Binding("enter", "submit", "search", show=False),
     ]
@@ -54,13 +66,15 @@ class SearchScreen(AOTScreen):
         ]
 
     def compose_body(self):
-        with Vertical():
-            yield Static(
+        yield Vertical(
+            Static(
                 "Regex to search across event fields (latest session):",
                 id="search-label",
                 markup=False,
-            )
-            yield Input(placeholder=r"e.g.  JWT|token", id="search-input")
+            ),
+            Input(placeholder=r"e.g.  JWT|token", id="search-input"),
+            id="search-wrap",
+        )
 
     def on_mount(self) -> None:
         inp = self.query_one(Input)

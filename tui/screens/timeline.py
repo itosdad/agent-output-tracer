@@ -51,6 +51,21 @@ _PREFIX = {
 class TimelineScreen(AOTScreen):
     TITLE = "timeline"
 
+    DEFAULT_CSS = """
+    /* Centre vertically with `align: center middle`. The OptionList
+     * keeps Textual's default `height: auto; max-height: 100%`:
+     *   - many events → fills the container, scrolls internally
+     *   - one or two events → naturally short, parent centres them
+     * width cap keeps cards readable on wide terminals. */
+    TimelineScreen > .body {
+        align: center middle;
+    }
+    TimelineScreen #timeline-list {
+        width: 100%;
+        max-width: 120;
+    }
+    """
+
     BINDINGS = [
         Binding("enter", "open", "detail", show=False),
         Binding("o", "toggle_follow", "follow", show=False),

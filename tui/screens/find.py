@@ -37,6 +37,19 @@ VOCAB_DESCRIPTIONS: dict[str, str] = {
 class FindScreen(AOTScreen):
     TITLE = "find"
 
+    DEFAULT_CSS = """
+    /* Ten vocab options + a couple of header rows. Tall enough to
+     * sit naturally centred. */
+    FindScreen > .body {
+        align: center middle;
+    }
+    FindScreen #find-vocab-list {
+        width: 100%;
+        max-width: 96;
+        height: auto;
+    }
+    """
+
     BINDINGS = [
         Binding("enter", "run", "run", show=False),
     ]
