@@ -1,0 +1,20 @@
+{
+  "name": "itosdad-agent-output-tracer",
+  "interface": {
+    "displayName": "Agent Output Tracer"
+  },
+  "plugins": [
+    {
+      "name": "agent-output-tracer",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Engineering"
+    }
+  ]
+}
