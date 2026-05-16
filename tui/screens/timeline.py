@@ -176,11 +176,15 @@ class TimelineScreen(AOTScreen):
 
         def runner() -> None:
             try:
+                # 0.2s poll. The recorder writes events sub-second once a
+                # tool fires; a 500ms poll was leaving visible lag.
+                # Below 0.2s the cost of `stat()` per cycle starts to
+                # noticeably outpace what the human eye can use.
                 for _ in follow_events(
                     sid,
                     data_dir=data_dir,
                     from_start=False,
-                    poll_interval=0.5,
+                    poll_interval=0.2,
                     stop_predicate=self._follower_stop.is_set,
                 ):
                     self.app.call_from_thread(self._reload)
@@ -254,6 +258,19 @@ class TimelineScreen(AOTScreen):
         # override with `t`.
         self._sync_theme_to_engine()
         ol = self.query_one(OptionList)
+        # Preserve the user's reading position across reloads:
+        # - follow mode: always snap to the latest event after the
+        #   reload (tail -f behaviour)
+        # - manual mode: keep the same option id highlighted if it
+        #   still exists; fall back to the same row index if not
+        previous_id: str | None = None
+        previous_idx = ol.highlighted
+        if previous_idx is not None:
+            try:
+                opt = ol.get_option_at_index(previous_idx)
+                previous_id = opt.id
+            except Exception:
+                previous_id = None
         ol.clear_options()
         try:
             events = load_events(self.session_id, data_dir=self._data_dir)
@@ -277,17 +294,29 @@ class TimelineScreen(AOTScreen):
         col = accent(self.app)
         term = self._search_term.lower()
         added = 0
+        visible_ids: list[str] = []
         for i, ev in enumerate(events):
             rendered = _render_event(ev, accent_col=col)
             if term and term not in rendered.plain.lower():
                 continue
-            ol.add_option(Option(rendered, id=str(i)))
+            opt_id = str(i)
+            ol.add_option(Option(rendered, id=opt_id))
+            visible_ids.append(opt_id)
             added += 1
-        # OptionList does not auto-highlight after `add_option()` (only
-        # after init-time options), so without this Enter is a no-op
-        # on first focus.
+        # Cursor restoration after the rebuild:
         if added > 0:
-            ol.highlighted = 0
+            if self._follow:
+                # tail -f: always at the newest row.
+                ol.highlighted = added - 1
+            elif previous_id is not None and previous_id in visible_ids:
+                # Same event still in view → keep its position.
+                ol.highlighted = visible_ids.index(previous_id)
+            elif previous_idx is not None and 0 <= previous_idx < added:
+                # Event filtered out by search but the row index still
+                # exists — keep approximate position.
+                ol.highlighted = previous_idx
+            else:
+                ol.highlighted = 0
         self._update_status_bar()
 
     def _update_status_bar(self) -> None:

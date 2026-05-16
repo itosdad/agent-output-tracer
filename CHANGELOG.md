@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.1] — 2026-05-16 — Engine detector + Timeline follow UX fixes
+
+### Fixed
+
+- **Every Claude Code event was being tagged `engine: codex`.** The
+  hook engine detector keyed off `permission_mode`'s presence,
+  which used to be a Codex-only field. Claude Code has since
+  adopted the same field on every event, so the detector silently
+  routed every Claude payload through the Codex adapter. Side
+  effects: wrong `engine` in metadata + every event, wrong theme
+  auto-detect, miscounted tool-mix per engine. The casing of
+  `hook_event_name` is the actually-reliable signal — Claude Code
+  uses CamelCase (`Stop`, `PreToolUse`), Codex uses snake_case
+  (`stop`, `pre_tool_use`). The detector now keys off that
+  instead, with `permission_mode` retained only as a tail
+  fallback.
+
+  This is why `agent_response_text` *looked* fine on the surface
+  (both adapters happen to read `last_assistant_message` for the
+  Stop event) but the engine field on every recorded event was
+  wrong, breaking every downstream consumer that branches on
+  engine.
+
+- **Timeline follow snapped the cursor back to the top on every
+  refresh.** `_reload()` unconditionally set `highlighted = 0`
+  after rebuilding the OptionList. In follow mode that fought the
+  poll: every new event reset the cursor away from the bottom.
+  New behaviour:
+  - follow mode → cursor snaps to the *newest* row after each
+    reload (tail -f)
+  - manual mode → cursor stays on the same event id if it's still
+    in view, or falls back to the same row index, instead of
+    jumping to 0
+
+- **Follow polling was sluggish.** `poll_interval=0.5` left visible
+  lag between the recorder writing an event and it appearing on
+  screen. Dropped to `0.2s` — well within the floor where the
+  `stat()` cost noticeably outpaces what an operator can use.
+
+### Tests
+
+- New integration test: a CamelCase `Stop` payload carrying
+  `permission_mode` (the actual production shape) routes to the
+  Claude Code adapter and populates `agent_response_text`.
+- New unit tests: Timeline follow mode keeps the cursor on the
+  newest row across reloads; manual mode preserves the cursor
+  across reloads.
+
 ## [0.16.0] — 2026-05-16 — Display name + OhMyZsh-style banner
 
 ### Added

@@ -172,6 +172,39 @@ def test_engine_detection_falls_back_to_claude_for_legacy_payload(tmp_path):
     assert parsed["event_type"] == "user_prompt"
 
 
+def test_engine_detection_claude_payload_with_permission_mode(tmp_path):
+    """Regression: Claude Code has started emitting `permission_mode`
+    on every event, which used to mistag Claude payloads as Codex.
+    The reliable signal is `hook_event_name` casing — CamelCase →
+    Claude Code, snake_case → Codex. Verify a CamelCase Stop event
+    that carries permission_mode is still routed to the Claude
+    adapter and the agent_response_text comes out populated."""
+    raw = {
+        "session_id": "cc-stop",
+        "cwd": "/proj",
+        "hook_event_name": "Stop",  # CamelCase → Claude Code
+        "permission_mode": "auto",  # ← this used to fool the detector
+        "stop_hook_active": False,
+        "last_assistant_message": "the assistant's reply text",
+        "transcript_path": "/tmp/x.jsonl",
+    }
+    res = _run_hook(
+        "stop.py",
+        json.dumps(raw),
+        env_overrides={"CLAUDE_PLUGIN_DATA": str(tmp_path)},
+    )
+    assert res.returncode == 0
+    parsed = json.loads(
+        (tmp_path / "sessions" / "cc-stop" / "events.jsonl").read_text().splitlines()[-1]
+    )
+    assert parsed["engine"] == "claude-code", (
+        "permission_mode is no longer a Codex-only marker; "
+        "hook_event_name casing must drive the engine choice"
+    )
+    assert parsed["event_type"] == "agent_response"
+    assert parsed["agent_response_text"] == "the assistant's reply text"
+
+
 def test_codex_session_start_drops_on_claude_adapter(tmp_path):
     """If a session_start payload arrives shaped like Claude Code (no
     permission_mode), the claude adapter doesn't subscribe to

@@ -1162,6 +1162,131 @@ def test_app_window_title_is_full_product_name():
     assert AOTApp.TITLE == APP_NAME
 
 
+# ---- Phase 4.A: timeline follow cursor behaviour ----
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_timeline_follow_keeps_cursor_at_bottom(plugin_data_dir):
+    """In follow mode the cursor must snap to the newest event after
+    every reload (tail -f). Before the fix, `_reload` forced the
+    cursor back to row 0 on every poll, so following an actively
+    recording session was unusable."""
+    from textual.widgets import OptionList
+
+    from core.recorder import append_event
+    from tui.app import AOTApp
+
+    base = {
+        "v": 1,
+        "engine": "claude-code",
+        "session_id": "follow-001",
+        "cwd": "/p",
+        "tool_name": None,
+        "tool_input": None,
+        "tool_response": None,
+        "agent_response_text": None,
+        "user_prompt_text": None,
+        "stop_reason": None,
+        "paths": [],
+        "command": None,
+        "result_bytes": 0,
+        "raw_event": {},
+    }
+    for i in range(3):
+        append_event(
+            {
+                **base,
+                "event_type": "user_prompt",
+                "ts": f"2026-05-16T10:00:0{i}.000+00:00",
+                "user_prompt_text": f"event {i}",
+            },
+            data_dir=plugin_data_dir,
+        )
+
+    app = AOTApp("follow-001", data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "TimelineScreen"
+        ol = app.screen.query_one(OptionList)
+        assert ol.option_count == 3
+
+        # Toggle follow on; cursor snaps to bottom.
+        await pilot.press("o")
+        await pilot.pause()
+        assert app.screen._follow is True
+        assert ol.highlighted == 2  # last row
+
+        # A new event arrives and _reload runs again. Cursor must
+        # follow to the new bottom, not reset to 0.
+        append_event(
+            {
+                **base,
+                "event_type": "agent_response",
+                "ts": "2026-05-16T10:00:10.000+00:00",
+                "agent_response_text": "fresh reply",
+            },
+            data_dir=plugin_data_dir,
+        )
+        # Trigger the reload the way the follower thread does.
+        app.screen._reload()
+        await pilot.pause()
+        assert ol.option_count == 4
+        assert ol.highlighted == 3, "follow mode should ride the newest row"
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_timeline_manual_mode_preserves_cursor_across_reload(plugin_data_dir):
+    """Without follow, pressing `r` (or any reload trigger) must keep
+    the cursor on the SAME event the operator was reading, not jump
+    to the top. Before the fix, every reload reset highlighted to 0."""
+    from textual.widgets import OptionList
+
+    from core.recorder import append_event
+    from tui.app import AOTApp
+
+    base = {
+        "v": 1,
+        "engine": "claude-code",
+        "session_id": "manual-001",
+        "cwd": "/p",
+        "tool_name": None,
+        "tool_input": None,
+        "tool_response": None,
+        "agent_response_text": None,
+        "user_prompt_text": None,
+        "stop_reason": None,
+        "paths": [],
+        "command": None,
+        "result_bytes": 0,
+        "raw_event": {},
+    }
+    for i in range(5):
+        append_event(
+            {
+                **base,
+                "event_type": "user_prompt",
+                "ts": f"2026-05-16T10:00:0{i}.000+00:00",
+                "user_prompt_text": f"event {i}",
+            },
+            data_dir=plugin_data_dir,
+        )
+
+    app = AOTApp("manual-001", data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        ol = app.screen.query_one(OptionList)
+        # Move cursor away from row 0.
+        ol.highlighted = 3
+        await pilot.pause()
+
+        # Reload (simulates `r` or auto-refresh from disk).
+        app.screen._reload()
+        await pilot.pause()
+        assert ol.highlighted == 3, "manual mode reload should preserve the cursor, not jump to top"
+
+
 # ---- Phase 4.A: theme override guard + launch precedence ----
 
 

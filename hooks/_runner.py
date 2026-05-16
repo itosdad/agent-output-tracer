@@ -52,18 +52,36 @@ def _read_stdin_json():
 def _detect_engine(raw):
     """Return the engine id implied by the payload shape.
 
-    Codex emits `permission_mode` and `model` on every hook event; Claude
-    Code does not. The `hook_event_name` casing also differs (Codex is
-    snake_case, Claude Code is CamelCase), which gives us a redundant
-    second signal.
+    Casing of `hook_event_name` is the reliable discriminator:
+      - Codex uses snake_case (`stop`, `pre_tool_use`, …)
+      - Claude Code uses CamelCase (`Stop`, `PreToolUse`, …)
+
+    Historical note: this used to key off `permission_mode`'s presence
+    because at the time only Codex emitted it. Claude Code has since
+    adopted the same field, which silently mistagged every Claude
+    Code event as `engine: codex` (and routed normalization through
+    the wrong adapter). The casing test is robust against either
+    engine adding new fields.
+
+    Defaults to `claude-code` when the name is missing — the user's
+    visible engine (Claude Code) has the larger install base.
     """
     if not isinstance(raw, dict):
         return "claude-code"
-    if "permission_mode" in raw:
-        return "codex"
     name = raw.get("hook_event_name")
-    if isinstance(name, str) and name and name == name.lower() and "_" in name:
-        return "codex"
+    if isinstance(name, str) and name:
+        # snake_case → all lower + at least one underscore (single-word
+        # names like "stop" qualify on case alone).
+        if name == name.lower():
+            return "codex"
+        # CamelCase / PascalCase → starts uppercase.
+        if name[0].isupper():
+            return "claude-code"
+    # Last-resort fallback when hook_event_name is missing — fall back
+    # to the legacy permission_mode heuristic but treat its absence as
+    # claude-code (the safer default).
+    if "permission_mode" not in raw:
+        return "claude-code"
     return "claude-code"
 
 
