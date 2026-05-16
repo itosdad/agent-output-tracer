@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.7] — 2026-05-16 — Engine detector keys on `transcript_path` (Codex no longer mistagged as Claude)
+
+### Fixed
+
+- **Codex sessions captured by the plugin were tagged
+  `engine: claude-code`.** The previous detector keyed on
+  `hook_event_name` casing (snake_case → Codex, CamelCase → Claude
+  Code) based on the assumption that each engine emitted event names
+  in its own canonical case. That broke once Codex started echoing the
+  event name back verbatim from the plugin's `hooks.json` registration
+  — and Codex's own docs recommend CamelCase event names there. So
+  every Codex hook payload arrived with `hook_event_name: PreToolUse`,
+  the casing test classified it as Claude Code, and the codex adapter
+  was never reached.
+
+  Replaced the casing test with a `transcript_path` check: Codex
+  writes its session transcripts under `~/.codex/sessions/...` and
+  Claude Code under `~/.claude/projects/...`. Path is the only
+  per-event field whose value is forced by each engine's on-disk
+  layout, so it stays stable even as payload schemas evolve. A
+  `turn_id`-presence fallback covers the case where transcript_path
+  isn't usefully scoped (Codex always sets `turn_id`; Claude Code
+  doesn't). Integration test fixtures updated to use realistic
+  transcript paths.
+
+### Tests
+
+- `tests/integration/test_codex_hook_scripts.py` fixtures changed
+  `transcript_path` from `/tmp/c.jsonl` to
+  `/Users/dev/.codex/sessions/...` (Codex side) and
+  `/Users/dev/.claude/projects/...` (Claude side) so the new
+  detector exercise actually reflects production payload shapes.
+- 511 tests still pass.
+
 ## [0.16.6] — 2026-05-16 — Codex hooks: top-level `hooks.json` with relative paths
 
 ### Fixed

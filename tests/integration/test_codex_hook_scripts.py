@@ -5,8 +5,13 @@ runtime engine detection in `hooks/_runner.py`). These tests verify
 each script accepts a Codex-format payload and records the right
 normalized event.
 
-Engine detection signal: Codex payloads carry `permission_mode`. The
-runner uses that to pick the codex adapter.
+Engine detection signal: the runner inspects `transcript_path` —
+Codex writes transcripts under `~/.codex/sessions/...`, Claude Code
+under `~/.claude/projects/...`. Path is the only per-event field
+forced by each engine's on-disk layout, so it remains stable even as
+hooks payloads evolve (older heuristics keyed on `permission_mode` or
+on `hook_event_name` casing both broke when Codex echoed the
+plugin-registered event name verbatim).
 """
 
 from __future__ import annotations
@@ -94,7 +99,11 @@ def _codex_payload(hook_event_name, **extra):
         "cwd": "/proj",
         "model": "gpt-5",
         "permission_mode": "default",
-        "transcript_path": "/tmp/c.jsonl",
+        # `_detect_engine` keys on the `.codex` / `.claude` segment of
+        # `transcript_path` — that's the only per-event field whose
+        # value is forced by the engine's on-disk layout. Use a path
+        # shaped like the real one Codex writes.
+        "transcript_path": "/Users/dev/.codex/sessions/cdx-itg.jsonl",
     }
     # turn_id only for turn-scoped events
     if hook_event_name in (
@@ -158,6 +167,7 @@ def test_engine_detection_falls_back_to_claude_for_legacy_payload(tmp_path):
         "cwd": "/proj",
         "hook_event_name": "UserPromptSubmit",
         "user_prompt": "hi from claude",
+        "transcript_path": "/Users/dev/.claude/projects/cc-itg.jsonl",
     }
     res = _run_hook(
         "user_prompt_submit.py",
@@ -186,7 +196,7 @@ def test_engine_detection_claude_payload_with_permission_mode(tmp_path):
         "permission_mode": "auto",  # ← this used to fool the detector
         "stop_hook_active": False,
         "last_assistant_message": "the assistant's reply text",
-        "transcript_path": "/tmp/x.jsonl",
+        "transcript_path": "/Users/dev/.claude/projects/cc-stop.jsonl",
     }
     res = _run_hook(
         "stop.py",

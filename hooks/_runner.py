@@ -52,36 +52,38 @@ def _read_stdin_json():
 def _detect_engine(raw):
     """Return the engine id implied by the payload shape.
 
-    Casing of `hook_event_name` is the reliable discriminator:
-      - Codex uses snake_case (`stop`, `pre_tool_use`, …)
-      - Claude Code uses CamelCase (`Stop`, `PreToolUse`, …)
+    `transcript_path` is the most reliable discriminator: both engines
+    set it on every payload and each engine writes its transcript under
+    its own home directory (`~/.codex/sessions/...` for Codex,
+    `~/.claude/projects/...` for Claude Code). Path is a content-level
+    signal that neither engine can change without breaking their own
+    install layout.
 
-    Historical note: this used to key off `permission_mode`'s presence
-    because at the time only Codex emitted it. Claude Code has since
-    adopted the same field, which silently mistagged every Claude
-    Code event as `engine: codex` (and routed normalization through
-    the wrong adapter). The casing test is robust against either
-    engine adding new fields.
+    Historical notes — discriminators that *used* to work and don't:
+      * `permission_mode`'s presence: at one point only Codex emitted
+        it; Claude Code adopted the same field and the heuristic flipped
+        every Claude Code event to `engine: codex`.
+      * `hook_event_name` casing (snake_case = Codex, CamelCase =
+        Claude): held until Codex started echoing the event name back
+        verbatim from the plugin's `hooks.json` registration, at which
+        point both engines emit CamelCase whenever the plugin uses
+        CamelCase keys (which is what Codex's own docs recommend).
 
-    Defaults to `claude-code` when the name is missing — the user's
-    visible engine (Claude Code) has the larger install base.
+    Defaults to `claude-code` when no signal is conclusive — the
+    visible-install-base default.
     """
     if not isinstance(raw, dict):
         return "claude-code"
-    name = raw.get("hook_event_name")
-    if isinstance(name, str) and name:
-        # snake_case → all lower + at least one underscore (single-word
-        # names like "stop" qualify on case alone).
-        if name == name.lower():
+    tp = raw.get("transcript_path")
+    if isinstance(tp, str) and tp:
+        lowered = tp.lower()
+        if "/.codex/" in lowered or "\\.codex\\" in lowered:
             return "codex"
-        # CamelCase / PascalCase → starts uppercase.
-        if name[0].isupper():
+        if "/.claude/" in lowered or "\\.claude\\" in lowered:
             return "claude-code"
-    # Last-resort fallback when hook_event_name is missing — fall back
-    # to the legacy permission_mode heuristic but treat its absence as
-    # claude-code (the safer default).
-    if "permission_mode" not in raw:
-        return "claude-code"
+    # Fallback: Codex always sets `turn_id`; Claude Code does not.
+    if "turn_id" in raw:
+        return "codex"
     return "claude-code"
 
 
