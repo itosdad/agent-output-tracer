@@ -85,19 +85,25 @@ class AOTApp(App):
             self.push_screen(TimelineScreen(resolved, data_dir=self._data_dir))
 
     def _initial_theme_name(self) -> str:
-        """Pick a starting theme. Precedence:
+        """Pick a starting theme. Precedence (top wins):
 
-        1. If `--session <sid>` was provided, use THAT session's engine.
-           Otherwise a user opening a Claude session on a Codex-newest
-           data_dir would land on cyan and have to press `t` every
-           launch — surprising.
-        2. Else, fall back to the newest captured session's engine.
-        3. Else (no sessions at all), if CLAUDE_PLUGIN_DATA /
-           CODEX_PLUGIN_DATA / *_PLUGIN_ROOT is set, the operator is
-           running aot from inside that engine's CLI environment —
-           use that as a "first launch with no data yet" hint.
-        4. Else, codex as the universal default (cyan is safer across
-           the variety of terminal palettes).
+        1. `--session <sid>` → THAT session's engine. Explicit user
+           intent: "I want to look at this session, theme it for that."
+
+        2. **Plugin-host env var** → the engine whose CLI is hosting
+           `aot tui` *right now*. `CLAUDE_PLUGIN_DATA` is set by
+           Claude Code, `CODEX_PLUGIN_DATA` by Codex. This is the
+           strongest "where am I now" signal — stronger than the
+           newest captured session, because that session might be a
+           stale Codex run from earlier in the day while the operator
+           has since switched engines.
+
+        3. Newest captured session's engine. Useful when running `aot
+           tui` from a bare shell outside either CLI — picks up
+           whichever engine the user was last debugging.
+
+        4. Codex as universal default (cyan plays well with the widest
+           range of terminal palettes).
         """
         # 1) explicit session wins
         if self._initial_session:
@@ -108,7 +114,12 @@ class AOTApp(App):
                     return theme_for_engine(engine)
             except Exception:
                 pass
-        # 2) newest session
+        # 2) plugin-host env var — "which CLI am I inside right now"
+        if os.environ.get("CLAUDE_PLUGIN_DATA") or os.environ.get("CLAUDE_PLUGIN_ROOT"):
+            return theme_for_engine("claude-code")
+        if os.environ.get("CODEX_PLUGIN_DATA") or os.environ.get("CODEX_PLUGIN_ROOT"):
+            return theme_for_engine("codex")
+        # 3) newest session
         try:
             sessions = list_sessions(data_dir=self._data_dir)
         except Exception:
@@ -117,11 +128,6 @@ class AOTApp(App):
             engine = sessions[0].get("engine") or ""
             if engine:
                 return theme_for_engine(engine)
-        # 3) env-var hint — only useful when nothing is captured yet
-        if os.environ.get("CLAUDE_PLUGIN_DATA") or os.environ.get("CLAUDE_PLUGIN_ROOT"):
-            return theme_for_engine("claude-code")
-        if os.environ.get("CODEX_PLUGIN_DATA") or os.environ.get("CODEX_PLUGIN_ROOT"):
-            return theme_for_engine("codex")
         # 4) universal default
         return theme_for_engine("")
 

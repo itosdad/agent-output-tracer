@@ -1014,11 +1014,19 @@ async def test_theme_auto_detects_claude_engine(plugin_data_dir):
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
-async def test_theme_auto_detects_codex_engine(plugin_data_dir):
-    """A codex session → aot-codex initial theme."""
+async def test_theme_auto_detects_codex_engine(tmp_path, monkeypatch):
+    """A codex session → aot-codex initial theme. Uses CODEX_PLUGIN_DATA
+    explicitly so the env-var signal matches the session under test —
+    the plugin_data_dir fixture sets CLAUDE_PLUGIN_DATA, which would
+    otherwise win under the v0.15.1 precedence change."""
     from core.recorder import append_event
     from tui.app import AOTApp
     from tui.themes import CODEX_THEME
+
+    data_dir = tmp_path / "plugin_data"
+    data_dir.mkdir()
+    monkeypatch.delenv("CLAUDE_PLUGIN_DATA", raising=False)
+    monkeypatch.setenv("CODEX_PLUGIN_DATA", str(data_dir))
 
     append_event(
         {
@@ -1039,10 +1047,10 @@ async def test_theme_auto_detects_codex_engine(plugin_data_dir):
             "result_bytes": 0,
             "raw_event": {},
         },
-        data_dir=plugin_data_dir,
+        data_dir=data_dir,
     )
 
-    app = AOTApp(None, data_dir=plugin_data_dir)
+    app = AOTApp(None, data_dir=data_dir)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.theme == CODEX_THEME.name
@@ -1164,6 +1172,99 @@ async def test_timeline_does_not_override_user_theme_choice(plugin_data_dir):
         await pilot.pause()
         assert app.screen.__class__.__name__ == "TimelineScreen"
         assert app.theme == CODEX_THEME.name
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_initial_theme_env_var_beats_stale_newest_session(tmp_path, monkeypatch):
+    """`aot tui` (no --session) launched from inside Claude Code should
+    pick the Claude theme even when an older Codex session is the
+    "newest" in the data_dir. The plugin-host env var is a stronger
+    "where am I now" signal than the captured-session history."""
+    from core.recorder import append_event
+    from tui.app import AOTApp
+    from tui.themes import CLAUDE_THEME
+
+    data_dir = tmp_path / "plugin_data"
+    data_dir.mkdir()
+    # Pretend we're running inside Claude Code right now.
+    monkeypatch.delenv("CODEX_PLUGIN_DATA", raising=False)
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(data_dir))
+
+    # But the only captured session is Codex from earlier.
+    append_event(
+        {
+            "v": 1,
+            "engine": "codex",
+            "event_type": "user_prompt",
+            "session_id": "stale-codex-001",
+            "ts": "2026-05-15T08:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=data_dir,
+    )
+
+    app = AOTApp(None, data_dir=data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # Env wins over the stale Codex session.
+        assert app.theme == CLAUDE_THEME.name
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_initial_theme_falls_back_to_newest_when_no_env(tmp_path, monkeypatch):
+    """When run from a bare shell with no plugin-host env var, the
+    newest captured session's engine still wins — the user is likely
+    debugging an existing capture, not currently inside an engine."""
+    from core.recorder import append_event
+    from tui.app import AOTApp
+    from tui.themes import CLAUDE_THEME
+
+    data_dir = tmp_path / "plugin_data"
+    data_dir.mkdir()
+    # Bare-shell scenario: neither env var set.
+    monkeypatch.delenv("CLAUDE_PLUGIN_DATA", raising=False)
+    monkeypatch.delenv("CODEX_PLUGIN_DATA", raising=False)
+    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    monkeypatch.delenv("CODEX_PLUGIN_ROOT", raising=False)
+
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",
+            "event_type": "user_prompt",
+            "session_id": "bare-shell-001",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=data_dir,
+    )
+
+    app = AOTApp(None, data_dir=data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.theme == CLAUDE_THEME.name
 
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")

@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.1] — 2026-05-16 — Bare `aot tui` reads the live engine env var
+
+### Changed
+
+- **Launch theme precedence reordered: `--session` → env var →
+  newest session → default.** Previously the plugin-host env var
+  (`CLAUDE_PLUGIN_DATA` / `CODEX_PLUGIN_DATA`) only kicked in as a
+  fallback for "first launch with no data yet" — useless in
+  practice because everyone has captures by the time they care.
+  The env var is in fact the strongest signal for "which CLI am
+  I inside *right now*", stronger than the newest captured
+  session, which might be a stale Codex run from earlier in the
+  day while the operator has since switched engines. Bare
+  `aot tui` (no `--session`) now picks the right theme on first
+  launch from inside Claude Code or Codex.
+
+### Tests
+
+- New: env var beats a stale newest-session of the other engine.
+- New: bare shell with no env var falls back to newest session.
+- Updated: the codex-auto-detect test now sets
+  `CODEX_PLUGIN_DATA` explicitly (the `plugin_data_dir` fixture
+  defaults to Claude Code's env var).
+
 ## [0.15.0] — 2026-05-16 — Phase 4.A: theme override fix, menu preview pane, clipboard yank
 
 Phase 3 is closed (v0.10.0 → v0.14.1). Phase 4 opens with the bug
