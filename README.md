@@ -5,6 +5,7 @@
 [![release](https://img.shields.io/github/v/release/itosdad/agent-output-tracer?include_prereleases&sort=semver)](https://github.com/itosdad/agent-output-tracer/releases)
 [![license](https://img.shields.io/github/license/itosdad/agent-output-tracer)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org)
+[![sponsor](https://img.shields.io/github/sponsors/itosdad?label=sponsor&logo=githubsponsors&color=ea4aaa)](https://github.com/sponsors/itosdad)
 
 > **Forensic debugger for AI agent sessions.**
 > Records every Claude Code / Codex CLI turn via hooks, then lets you replay,
@@ -258,6 +259,15 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the per-version diff.
 | [`CHANGELOG.md`](CHANGELOG.md) | Per-version diff |
 
 ---
+
+## Sponsor
+
+If this tool saves you an afternoon of staring at agent logs, consider
+sponsoring the work via [GitHub Sponsors](https://github.com/sponsors/itosdad).
+Funding goes directly to the maintainer and helps keep the project
+focused on real-world forensic UX (instead of side gigs).
+
+[![Sponsor @itosdad](https://img.shields.io/badge/Sponsor-%40itosdad-ea4aaa?logo=githubsponsors)](https://github.com/sponsors/itosdad)
 
 ## Contributing
 

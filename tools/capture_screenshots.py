@@ -34,7 +34,16 @@ VIEWPORT = (96, 32)
 
 
 def _seed_data(data_dir: Path) -> str:
-    """Append a tiny but representative session into data_dir."""
+    """Append a tiny but representative synthetic session into data_dir.
+
+    Generic English content — a developer asking an AI agent to
+    investigate an auth handler. The agent reads one real file, runs
+    the test suite, then emits a response that names a second file
+    (`legacy_handler.py`) which it never actually fetched. That last
+    sentence is the textbook hallucination the Find detector is
+    designed to surface, and gives every screenshot something real
+    to display.
+    """
     from core.recorder import append_event
 
     sid = "demo-session-01"
@@ -42,7 +51,7 @@ def _seed_data(data_dir: Path) -> str:
         "v": 1,
         "engine": "claude-code",
         "session_id": sid,
-        "cwd": "/Users/you/work/example",
+        "cwd": "/Users/dev/work/api-service",
         "tool_name": None,
         "tool_input": None,
         "tool_response": None,
@@ -54,25 +63,25 @@ def _seed_data(data_dir: Path) -> str:
         "result_bytes": 0,
         "raw_event": {},
     }
-    # 1) user_prompt
+    # 1) user_prompt — typical investigation request
     append_event(
         {
             **base,
             "event_type": "user_prompt",
-            "ts": "2026-05-16T19:42:01.000+00:00",
-            "user_prompt_text": "describe Phase D — the plan and the layout we want",
+            "ts": "2026-05-16T10:14:01.000+00:00",
+            "user_prompt_text": "What changed in the auth handler last week?",
         },
         data_dir=data_dir,
     )
-    # 2) pre_tool Read
+    # 2) pre_tool Read — real file the agent does fetch
     append_event(
         {
             **base,
             "event_type": "pre_tool",
-            "ts": "2026-05-16T19:42:03.000+00:00",
+            "ts": "2026-05-16T10:14:03.000+00:00",
             "tool_name": "Read",
-            "tool_input": {"file_path": "/Users/you/work/example/DESIGN.md"},
-            "paths": ["/Users/you/work/example/DESIGN.md"],
+            "tool_input": {"file_path": "/Users/dev/work/api-service/auth/handler.py"},
+            "paths": ["/Users/dev/work/api-service/auth/handler.py"],
         },
         data_dir=data_dir,
     )
@@ -81,24 +90,28 @@ def _seed_data(data_dir: Path) -> str:
         {
             **base,
             "event_type": "post_tool",
-            "ts": "2026-05-16T19:42:03.500+00:00",
+            "ts": "2026-05-16T10:14:03.500+00:00",
             "tool_name": "Read",
-            "tool_input": {"file_path": "/Users/you/work/example/DESIGN.md"},
-            "tool_response": "# DESIGN\n\n## §4 layout — Phase D…",
-            "paths": ["/Users/you/work/example/DESIGN.md"],
-            "result_bytes": 47104,
+            "tool_input": {"file_path": "/Users/dev/work/api-service/auth/handler.py"},
+            "tool_response": (
+                "def authenticate(req):\n"
+                "    token = req.headers.get('Authorization')\n"
+                "    return verify_jwt(token)\n"
+            ),
+            "paths": ["/Users/dev/work/api-service/auth/handler.py"],
+            "result_bytes": 2147,
         },
         data_dir=data_dir,
     )
-    # 4) pre_tool Bash
+    # 4) pre_tool Bash — running the test suite
     append_event(
         {
             **base,
             "event_type": "pre_tool",
-            "ts": "2026-05-16T19:42:08.000+00:00",
+            "ts": "2026-05-16T10:14:08.000+00:00",
             "tool_name": "Bash",
-            "tool_input": {"command": "pytest -q tests/unit"},
-            "command": "pytest -q tests/unit",
+            "tool_input": {"command": "pytest tests/auth/ -v"},
+            "command": "pytest tests/auth/ -v",
         },
         data_dir=data_dir,
     )
@@ -107,25 +120,32 @@ def _seed_data(data_dir: Path) -> str:
         {
             **base,
             "event_type": "post_tool",
-            "ts": "2026-05-16T19:42:09.200+00:00",
+            "ts": "2026-05-16T10:14:09.200+00:00",
             "tool_name": "Bash",
-            "tool_input": {"command": "pytest -q tests/unit"},
-            "tool_response": "....\n4 passed in 0.21s",
-            "command": "pytest -q tests/unit",
-            "result_bytes": 28,
+            "tool_input": {"command": "pytest tests/auth/ -v"},
+            "tool_response": (
+                "tests/auth/test_handler.py::test_valid_token PASSED\n"
+                "tests/auth/test_handler.py::test_expired_token PASSED\n\n"
+                "2 passed in 0.43s"
+            ),
+            "command": "pytest tests/auth/ -v",
+            "result_bytes": 124,
         },
         data_dir=data_dir,
     )
-    # 6) agent_response with a path the user never mentioned and no
-    # Read produced — guaranteed hallucination hit for Find.
+    # 6) agent_response — names a file (`legacy_handler.py`) that no
+    #    Read fetched and the user never mentioned. Guaranteed
+    #    hallucinations hit for Find.
     append_event(
         {
             **base,
             "event_type": "agent_response",
-            "ts": "2026-05-16T19:42:12.000+00:00",
+            "ts": "2026-05-16T10:14:12.000+00:00",
             "agent_response_text": (
-                "Phase D ships across four sub-phases; the canonical reference is "
-                "/Users/you/work/example/DOES_NOT_EXIST.md"
+                "The auth handler now uses JWT validation. The previous "
+                "implementation is preserved at "
+                "/Users/dev/work/api-service/auth/legacy_handler.py "
+                "for reference."
             ),
         },
         data_dir=data_dir,

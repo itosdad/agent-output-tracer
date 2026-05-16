@@ -1,0 +1,14 @@
+# GitHub Sponsors / external funding links.
+#
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+#
+# Once the Sponsors profile is approved at https://github.com/sponsors,
+# the `Sponsor` button appears at the top of the repo and on every PR.
+
+github: itosdad
+# Other supported keys (uncomment / fill in as needed):
+# patreon: <user>
+# open_collective: <user>
+# ko_fi: <user>
+# tidelift: pypi/agent-output-tracer
+# custom: ['https://example.com/donate']

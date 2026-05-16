@@ -204,35 +204,42 @@ class HomeScreen(AOTScreen):
         self._route(opt.id or "")
 
     def _route(self, key: str) -> None:
+        # Forward the App's data_dir to every child screen — without
+        # this, screens fall back to resolve_data_dir's filesystem
+        # scan, which picks up unrelated session stores (e.g.
+        # ~/.claude/plugins/data/...) when the App was launched against
+        # an explicit data_dir (notably the screenshot harness in
+        # tools/capture_screenshots.py).
+        data_dir = getattr(self.app, "_data_dir", None)
         if key == "sessions":
             from tui.screens.sessions import SessionsScreen
 
-            self.app.push_screen(SessionsScreen())
+            self.app.push_screen(SessionsScreen(data_dir=data_dir))
             return
         if key == "stats":
             from tui.screens.stats import StatsScreen
 
-            self.app.push_screen(StatsScreen())
+            self.app.push_screen(StatsScreen(data_dir=data_dir))
             return
         if key == "doctor":
             from tui.screens.doctor import DoctorScreen
 
-            self.app.push_screen(DoctorScreen())
+            self.app.push_screen(DoctorScreen(data_dir=data_dir))
             return
         if key == "find":
             from tui.screens.find import FindScreen
 
-            self.app.push_screen(FindScreen())
+            self.app.push_screen(FindScreen(data_dir=data_dir))
             return
         if key == "trace":
             from tui.screens.trace import TraceScreen
 
-            self.app.push_screen(TraceScreen())
+            self.app.push_screen(TraceScreen(data_dir=data_dir))
             return
         if key == "search":
             from tui.screens.search import SearchScreen
 
-            self.app.push_screen(SearchScreen())
+            self.app.push_screen(SearchScreen(data_dir=data_dir))
             return
         if key == "theme":
             from tui.screens.theme import ThemeScreen
