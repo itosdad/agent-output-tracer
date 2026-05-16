@@ -164,17 +164,22 @@ class FindResultsScreen(AOTScreen):
         # can share the same `event_idx` (one agent_response, many tokens
         # extracted), so we identify rows by `match-<index>` and store
         # the underlying event_idx separately for drill-in.
+        from tui._accent import warning
+
+        warn_col = warning(self.app)
         for i, m in enumerate(self._matches):
             try:
-                ol.add_option(Option(_render_match(m), id=f"match-{i}"))
+                ol.add_option(Option(_render_match(m, warn_col=warn_col), id=f"match-{i}"))
             except Exception:
                 continue
         ol.highlighted = 0
 
     def _show_error(self, msg: str) -> None:
+        from tui._accent import error
+
         ol = self.query_one(OptionList)
         ol.clear_options()
-        ol.add_option(Option(Text(f"error: {msg}", style="red")))
+        ol.add_option(Option(Text(f"error: {msg}", style=error(self.app))))
 
 
 class _NullStream:
@@ -188,12 +193,12 @@ class _NullStream:
         return None
 
 
-def _render_match(m: dict) -> Text:
+def _render_match(m: dict, *, warn_col: str = "yellow") -> Text:
     """Two-line card for one match. Line 1: ts + key fact; line 2:
     secondary fields. Compact enough for half-desktop layouts."""
     ts = short_time(m.get("ts"))
     text = Text()
-    text.append("•  ", style="bold yellow")
+    text.append("•  ", style=f"bold {warn_col}")
     text.append(ts, style="dim")
     text.append("  event ", style="dim")
     text.append(str(m.get("event_idx", "?")), style="bold")

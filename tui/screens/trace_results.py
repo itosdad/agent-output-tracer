@@ -115,9 +115,15 @@ class TraceResultsScreen(AOTScreen):
                 stream=_NullStream(),
             )
         except Exception as exc:
-            self.query_one("#trace-body", Static).update(Text(f"error: {exc}", style="red"))
+            from tui._accent import error
+
+            self.query_one("#trace-body", Static).update(
+                Text(f"error: {exc}", style=error(self.app))
+            )
             return
-        self.query_one("#trace-body", Static).update(_render_trace(self.phrase, self._result))
+        self.query_one("#trace-body", Static).update(
+            _render_trace(self.phrase, self._result, self.app)
+        )
 
 
 class _NullStream:
@@ -128,7 +134,13 @@ class _NullStream:
         return None
 
 
-def _render_trace(phrase: str, r: dict) -> Text:
+def _render_trace(phrase: str, r: dict, app) -> Text:
+    from tui._accent import error, success, warning
+
+    ok_col = success(app)
+    warn_col = warning(app)
+    err_col = error(app)
+
     text = Text()
     first = r.get("first_mention_event")
     if first is None:
@@ -153,7 +165,7 @@ def _render_trace(phrase: str, r: dict) -> Text:
         )
     else:
         marker = "✓ mentioned" if up.get("matched") else "✗ not mentioned"
-        style = "green" if up.get("matched") else "yellow"
+        style = ok_col if up.get("matched") else warn_col
         ev = up.get("event") or {}
         text.append(f"  {marker}", style=style)
         text.append(f"  at {short_time(ev.get('ts'))}\n", style="dim")
@@ -169,17 +181,17 @@ def _render_trace(phrase: str, r: dict) -> Text:
         for s in sources:
             ev = s.get("event") or {}
             mark = "✓ contains" if s.get("contains") else "✗ does not contain"
-            style = "green" if s.get("contains") else "dim"
+            style = ok_col if s.get("contains") else "dim"
             text.append(f"  [{short_time(ev.get('ts'))}] ", style="dim")
             text.append(f"{s.get('path', '?')}", style="")
             text.append(f"  {mark}\n", style=style)
 
     if r.get("hallucination_candidate"):
         text.append("\n")
-        text.append("⚠ hallucination candidate\n", style="bold red")
+        text.append("⚠ hallucination candidate\n", style=f"bold {err_col}")
         text.append(
             "  no user prompt or Read response grounded this phrase before the agent said it.\n",
-            style="red",
+            style=err_col,
         )
 
     return text

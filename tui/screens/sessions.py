@@ -118,8 +118,10 @@ class SessionsScreen(AOTScreen):
         if not sid or not sid.startswith(("/", "")):
             pass
         try:
+            from tui._accent import warning
+
             self.query_one("#sessions-preview", Static).update(
-                _render_session_preview(sid, data_dir=self._data_dir)
+                _render_session_preview(sid, data_dir=self._data_dir, warn_col=warning(self.app))
             )
         except Exception:
             pass
@@ -252,7 +254,7 @@ def _run_export(app, session_id: str, values: dict | None, data_dir) -> None:
     )
 
 
-def _render_session_preview(sid: str, *, data_dir) -> Text:
+def _render_session_preview(sid: str, *, data_dir, warn_col: str = "yellow") -> Text:
     """Per-session preview card shown below the list. Pulls everything
     from metadata.json — no extra event-file scan, so the highlight
     callback stays cheap (cursor stepping must not stutter)."""
@@ -304,7 +306,7 @@ def _render_session_preview(sid: str, *, data_dir) -> Text:
     if anomalies:
         items = sorted(anomalies.items(), key=lambda kv: -kv[1])[:5]
         text.append("  anom   ", style="dim")
-        text.append(" · ".join(f"{n} {c}" for n, c in items), style="yellow")
+        text.append(" · ".join(f"{n} {c}" for n, c in items), style=warn_col)
     return text
 
 

@@ -1162,6 +1162,98 @@ def test_app_window_title_is_full_product_name():
     assert AOTApp.TITLE == APP_NAME
 
 
+# ---- v0.16.2: timeline theme reads engine from events, not metadata ----
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_timeline_theme_uses_event_engine_not_stale_metadata(plugin_data_dir, monkeypatch):
+    """Sessions captured before v0.16.1 had metadata.engine burned in
+    as "codex" because the runner's old _detect_engine misread Claude
+    Code payloads that carried `permission_mode`. Drilling into such
+    a session forced Codex theme on every reload — even when the
+    actual events have `engine: claude-code`.
+
+    Fix: Timeline._sync_theme_to_engine reads the engine from the
+    loaded event stream, never from metadata. Stale metadata can no
+    longer override the live truth.
+    """
+    import json
+
+    from core.recorder import append_event
+    from tui.app import AOTApp
+    from tui.themes import CLAUDE_THEME
+
+    # Don't let env-var precedence steer the launch theme — test the
+    # Timeline sync logic in isolation.
+    monkeypatch.delenv("CLAUDE_PLUGIN_DATA", raising=False)
+    monkeypatch.delenv("CODEX_PLUGIN_DATA", raising=False)
+
+    base = {
+        "v": 1,
+        "engine": "claude-code",
+        "session_id": "stale-meta-001",
+        "cwd": "/p",
+        "tool_name": None,
+        "tool_input": None,
+        "tool_response": None,
+        "agent_response_text": None,
+        "user_prompt_text": None,
+        "stop_reason": None,
+        "paths": [],
+        "command": None,
+        "result_bytes": 0,
+        "raw_event": {},
+    }
+    append_event(
+        {
+            **base,
+            "event_type": "user_prompt",
+            "ts": "2026-05-16T10:00:00.000+00:00",
+            "user_prompt_text": "hi",
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    # Simulate stale metadata: rewrite metadata.engine to "codex"
+    # (this is the production state of every session captured pre-v0.16.1).
+    meta_path = plugin_data_dir / "sessions" / "stale-meta-001" / "metadata.json"
+    meta = json.loads(meta_path.read_text())
+    meta["engine"] = "codex"
+    meta_path.write_text(json.dumps(meta))
+
+    app = AOTApp("stale-meta-001", data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "TimelineScreen"
+        assert app.theme == CLAUDE_THEME.name, (
+            "Timeline must read engine from events, not stale metadata"
+        )
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+def test_majority_engine_picks_first_when_tied():
+    """When events disagree on engine (extremely rare; possible only
+    if someone hand-merges two sessions), the majority wins. Tie
+    breaks deterministically toward the first-seen engine."""
+    from tui.screens.timeline import _majority_engine
+
+    assert _majority_engine([]) is None
+    assert _majority_engine([{}, {"engine": ""}]) is None
+    assert (
+        _majority_engine(
+            [
+                {"engine": "claude-code"},
+                {"engine": "codex"},
+                {"engine": "claude-code"},
+            ]
+        )
+        == "claude-code"
+    )
+    # Tie → first-seen wins (Counter.most_common preserves insertion order).
+    assert _majority_engine([{"engine": "codex"}, {"engine": "claude-code"}]) == "codex"
+
+
 # ---- Phase 4.A: timeline follow cursor behaviour ----
 
 

@@ -204,27 +204,38 @@ class TimelineScreen(AOTScreen):
         self.app.bell()
 
     def _sync_theme_to_engine(self) -> None:
-        """Match the active Textual theme to the session's `engine`
-        field — UNLESS the user has explicitly chosen a theme this
-        session (via `t` or ThemeScreen). Without that guard, every
-        Timeline reload silently overrode the user's choice, which is
-        exactly the bug the v0.15.0 fix targets.
+        """Match the active Textual theme to the session's actual engine.
 
-        Best-effort — a stale metadata read must not propagate as a
-        UI exception.
+        Two guard rails make this safe:
+
+        1. If the user has explicitly chosen a theme this run (via `t`
+           or ThemeScreen), don't override their choice.
+
+        2. **Read the engine from the event stream, NOT from
+           metadata.json.** Before v0.16.2 this method read
+           `metadata.engine`, which the recorder fills in once on the
+           first event and never touches again. Sessions captured
+           before v0.16.1 had their engine misdetected as "codex" (the
+           legacy `permission_mode` heuristic was fooled by Claude
+           Code adopting that field), and the wrong engine was burned
+           into metadata permanently — so Timeline kept forcing the
+           Codex theme onto Claude Code sessions on every reload.
+           Reading the live engine off the loaded events sidesteps any
+           stale metadata: if the actual events say `engine:
+           claude-code`, we honour that regardless of what metadata
+           was frozen with.
+
+        Best-effort — failure to determine the engine just leaves the
+        theme alone, never raises into the TUI loop.
         """
         try:
             if getattr(self.app, "user_theme_override", False):
                 return
-            from core.session_io import load_metadata
-            from tui.themes import theme_for_engine
-
-            meta = load_metadata(self.session_id, data_dir=self._data_dir) or {}
-            engine = meta.get("engine")
-            # Don't downgrade to the default theme when metadata is
-            # missing the engine field — preserve whatever is active.
+            engine = _majority_engine(self._events)
             if not engine:
                 return
+            from tui.themes import theme_for_engine
+
             wanted = theme_for_engine(engine)
             if self.app.theme != wanted:
                 self.app.theme = wanted
@@ -253,10 +264,6 @@ class TimelineScreen(AOTScreen):
 
     def _reload(self) -> None:
         self._resolve_session()
-        # Auto-switch the theme to match this session's engine if it
-        # differs from the currently active one. Operator can still
-        # override with `t`.
-        self._sync_theme_to_engine()
         ol = self.query_one(OptionList)
         # Preserve the user's reading position across reloads:
         # - follow mode: always snap to the latest event after the
@@ -277,6 +284,12 @@ class TimelineScreen(AOTScreen):
         except Exception:
             events = []
         self._events = events
+        # Auto-switch the theme based on *the events we just loaded*,
+        # never the (potentially stale) metadata.engine field. Runs
+        # AFTER events are populated so _sync_theme_to_engine sees the
+        # current data, not the previous reload's snapshot. Operator
+        # can still override with `t`.
+        self._sync_theme_to_engine()
         if not events:
             empty = Text()
             empty.append("(no events recorded for this session)\n", style="dim")
@@ -338,6 +351,26 @@ class TimelineScreen(AOTScreen):
             )
         except Exception:
             pass
+
+
+def _majority_engine(events: list[dict]) -> str | None:
+    """Return the engine ID that appears most often in the event list.
+
+    Ignores empty / unset values. Tie-breaks toward whatever
+    `Counter.most_common` reports first, which is deterministic by
+    insertion order — i.e. the engine of the earliest event wins, which
+    is what an operator would intuitively expect ("which engine
+    started this session?").
+
+    Returns None if no event carries an engine field.
+    """
+    from collections import Counter
+
+    engines = [e.get("engine") for e in events if isinstance(e, dict) and e.get("engine")]
+    if not engines:
+        return None
+    counter = Counter(engines)
+    return counter.most_common(1)[0][0]
 
 
 def _render_event(ev: dict, *, accent_col: str = "cyan") -> Text:

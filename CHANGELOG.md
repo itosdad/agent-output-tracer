@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.2] — 2026-05-16 — Theme robustness + top alignment + per-engine semantic colours
+
+### Fixed
+
+- **Timeline forced the wrong theme on sessions captured before
+  v0.16.1.** Those sessions have `metadata.engine = "codex"`
+  burned in (the recorder writes engine once from the first event
+  and never updates it; pre-v0.16.1 the first event was always
+  misdetected as Codex). Timeline read that stale field and kept
+  flipping the theme to Codex on every reload, even when the
+  actual events are clearly Claude Code.
+
+  Root-cause fix: `_sync_theme_to_engine` now reads engine from the
+  *event stream*, not from metadata. A new `_majority_engine()`
+  helper returns the most common engine across the loaded events,
+  with ties broken deterministically toward the first-seen.
+  Metadata is no longer touched for theming.
+
+- **Body content rendered in the vertical middle of the viewport
+  on short-content screens** (Stats / Doctor / Theme / Config /
+  Trace / Search). Added explicit `align: left top` /
+  `content-align: left top` to `AOTScreen > .body` and any
+  `Vertical` nested in it. Long screens (Timeline) already filled
+  the viewport so were unaffected.
+
+### Changed
+
+- **Semantic colours (success / warning / error) now follow the
+  active theme.** Previously hardcoded Rich names (`"red"`,
+  `"green"`, `"bold yellow"`) ignored the engine palette, so the
+  same error message rendered identically on both themes. Now
+  every coloured glyph reads from `app.current_theme.{success,
+  warning, error}`:
+  - Doctor `✓ / ⚠ / ✗` status icons + headline
+  - StatusBar live-follow shimmer
+  - Find / Search match bullets
+  - Trace results "✓ mentioned / ✗ not mentioned",
+    "⚠ hallucination candidate"
+  - Stats / Find / Search / Trace error messages
+  - Sessions preview anomaly counters
+
+  Codex shows bright terminal-style green / amber / red. Claude
+  shows muted warm green / tan / red that harmonises with the
+  salmon accent. New shared helpers in `tui._accent`:
+  `success()`, `warning()`, `error()`, `severity(name)`.
+
+### Tests
+
+- 2 new tests:
+  - Timeline mounted on a session whose metadata.engine is stale
+    (`codex`) but whose events say `claude-code` lands on the
+    Claude theme.
+  - `_majority_engine()` returns the most-frequent engine, ties
+    break to first-seen, empty input returns None.
+
 ## [0.16.1] — 2026-05-16 — Engine detector + Timeline follow UX fixes
 
 ### Fixed

@@ -77,8 +77,10 @@ class StatsScreen(AOTScreen):
         try:
             result = _stats(resolved, data_dir=self._data_dir)
         except Exception as exc:
+            from tui._accent import error
+
             self.query_one("#stats-body", Static).update(
-                Text(f"could not compute stats: {exc}", style="red")
+                Text(f"could not compute stats: {exc}", style=error(self.app))
             )
             return
         self._result = result

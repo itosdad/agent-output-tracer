@@ -25,7 +25,6 @@ from query.doctor import doctor as _doctor
 from tui.router import AOTScreen
 
 _STATUS_GLYPH = {"ok": "✓", "warn": "⚠", "fail": "✗"}
-_STATUS_STYLE = {"ok": "green", "warn": "yellow", "fail": "red"}
 
 
 class DoctorScreen(AOTScreen):
@@ -75,29 +74,33 @@ class DoctorScreen(AOTScreen):
             return ""
 
     def _refresh_view(self) -> None:
+        from tui._accent import error
+
         try:
             result = _doctor(data_dir=self._data_dir, fmt="json")
         except Exception as exc:
             self.query_one("#doctor-body", Static).update(
-                Text(f"doctor crashed: {exc}", style="red")
+                Text(f"doctor crashed: {exc}", style=error(self.app))
             )
             return
         self._result = result
-        self.query_one("#doctor-body", Static).update(_render_doctor(result))
+        self.query_one("#doctor-body", Static).update(_render_doctor(result, self.app))
 
 
-def _render_doctor(result: dict) -> Text:
+def _render_doctor(result: dict, app) -> Text:
+    from tui._accent import severity, success, warning
+
     text = Text()
-    headline = "all checks pass" if result.get("ok") else "some checks need attention"
+    healthy = bool(result.get("ok"))
+    headline = "all checks pass" if healthy else "some checks need attention"
     text.append(
         headline + "\n\n",
-        style=("bold green" if result.get("ok") else "bold yellow"),
+        style=("bold " + (success(app) if healthy else warning(app))),
     )
     for c in result.get("checks") or []:
         status = c.get("status", "?")
         glyph = _STATUS_GLYPH.get(status, "·")
-        style = _STATUS_STYLE.get(status, "")
-        text.append(f"{glyph} ", style=style + " bold")
+        text.append(f"{glyph} ", style=f"bold {severity(app, status)}")
         text.append(f"{c.get('name', '?')}\n", style="bold")
         detail = c.get("detail") or ""
         for line in str(detail).splitlines():

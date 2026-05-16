@@ -84,9 +84,14 @@ class StatusBar(Widget):
         if self.follow:
             # Shimmer between `●` (filled, bright) and `○` (hollow,
             # dim) — eye catches the pulse without the bar being
-            # visually noisy.
+            # visually noisy. Uses theme.success so Claude shows a
+            # warmer leaf-green pulse and Codex shows the bright
+            # terminal-green pulse.
+            from tui._accent import success
+
+            ok_col = success(self.app)
             glyph = "●" if self._shimmer_on else "○"
-            style = "bold green" if self._shimmer_on else "green"
+            style = f"bold {ok_col}" if self._shimmer_on else ok_col
             text.append(f"{glyph} live", style=style)
         else:
             text.append("○ static", style="dim")

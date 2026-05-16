@@ -1,20 +1,59 @@
-"""Shared helper for reading the active theme's accent colour.
+"""Shared helpers for reading the active theme's palette colours.
 
-Several render() methods need to colour their Rich Text in step with
-the current Textual theme. Each previously duplicated a private
-`_accent(app)` helper; this module is the one source of truth.
+Render paths across the TUI need to tint Rich Text in step with the
+active Textual theme. Each helper reads one slot off
+`app.current_theme` and falls back to a sensible terminal default
+when Textual hasn't mounted yet.
 
-Returns a colour string Rich understands (hex `#RRGGBB` from the
-Theme dataclass, or `"cyan"` as a defensive fallback if Textual
-hasn't finished mounting yet).
+Accent + the three semantic slots (success / warning / error) are
+exposed here so that every coloured glyph in the app picks up the
+engine-specific palette — Codex's bright cyan/green/yellow/red vs
+Claude's warmer salmon-leaning equivalents.
 """
 
 from __future__ import annotations
 
 
-def accent(app) -> str:
-    """Return the active theme's accent colour, or `"cyan"`."""
+def _slot(app, name: str, fallback: str) -> str:
     try:
-        return app.current_theme.accent or "cyan"
+        value = getattr(app.current_theme, name, None)
+        return value or fallback
     except Exception:
-        return "cyan"
+        return fallback
+
+
+def accent(app) -> str:
+    """Engine accent — the colour that carries identity (cyan/salmon)."""
+    return _slot(app, "accent", "cyan")
+
+
+def success(app) -> str:
+    """Active theme's success colour (Codex bright green / Claude warm green)."""
+    return _slot(app, "success", "green")
+
+
+def warning(app) -> str:
+    """Active theme's warning colour (Codex amber / Claude warm tan)."""
+    return _slot(app, "warning", "yellow")
+
+
+def error(app) -> str:
+    """Active theme's error colour (Codex bright red / Claude warm red)."""
+    return _slot(app, "error", "red")
+
+
+def severity(app, name: str) -> str:
+    """Map a CLI-style status word to the theme's matching colour.
+
+    Accepts the values `query.doctor` already uses (`ok` / `warn` /
+    `fail`) plus the more verbose `success` / `warning` / `error` so
+    callers can pass whichever fits the call site without translation.
+    """
+    name = (name or "").lower()
+    if name in ("ok", "success", "good", "pass"):
+        return success(app)
+    if name in ("warn", "warning", "stale"):
+        return warning(app)
+    if name in ("fail", "error", "bad"):
+        return error(app)
+    return _slot(app, "foreground", "white")

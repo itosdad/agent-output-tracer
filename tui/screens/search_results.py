@@ -139,10 +139,12 @@ class SearchResultsScreen(AOTScreen):
         except Exception:
             pass
 
+        from tui._accent import error, warning
+
         try:
             regex = re.compile(self.pattern)
         except re.error as exc:
-            ol.add_option(Option(Text(f"invalid regex: {exc}", style="red")))
+            ol.add_option(Option(Text(f"invalid regex: {exc}", style=error(self.app))))
             return
 
         self._matches = []
@@ -166,18 +168,21 @@ class SearchResultsScreen(AOTScreen):
 
         # Same caveat as FindResults: many matches can share one
         # event_idx (the same event has the pattern in several fields).
+        warn_col = warning(self.app)
         for i, (event_idx, m) in enumerate(self._matches):
             try:
-                ol.add_option(Option(_render_match(event_idx, m), id=f"match-{i}"))
+                ol.add_option(
+                    Option(_render_match(event_idx, m, warn_col=warn_col), id=f"match-{i}")
+                )
             except Exception:
                 continue
         ol.highlighted = 0
 
 
-def _render_match(event_idx: int, m: dict) -> Text:
+def _render_match(event_idx: int, m: dict, *, warn_col: str = "yellow") -> Text:
     ev = m["ev"]
     text = Text()
-    text.append("•  ", style="bold yellow")
+    text.append("•  ", style=f"bold {warn_col}")
     text.append(short_time(ev.get("ts")), style="dim")
     text.append("  ")
     text.append(f"{ev.get('event_type', '?')}.{m['field']}", style="")
