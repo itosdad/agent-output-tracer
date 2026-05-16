@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.11] — 2026-05-17 — Revert v0.16.8 shell-wrap; respect Codex's native hook trust contract
+
+### Fixed
+
+- **Codex stopped recording sessions after the v0.16.10 upgrade because
+  6 of 8 hooks were sitting in Codex's "pending trust" state.** The
+  fail-safe shell wrap added in v0.16.8 (`{ python3 ... || true ; }
+  >/dev/null 2>&1`) was a defensive belt-and-suspenders that, as a
+  side effect, changed every hook command string and therefore every
+  `trusted_hash` Codex records under `[hooks.state."..."]` in
+  `~/.codex/config.toml`. Codex's standard security model requires
+  per-hook re-approval whenever a hook's command content changes —
+  the user had only managed to approve `session_start` and
+  `user_prompt_submit` interactively; the other 6 (`pre_tool_use`,
+  `post_tool_use`, `stop`, `session_end`, `pre_compact`,
+  `post_compact`) were waiting silently. Without `pre_tool_use` /
+  `post_tool_use` approved, no tool-call events made it into
+  events.jsonl, which looked like "session recording stopped."
+
+  Reverted `hooks/hooks.json` to the original simple form
+  (`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/<script>.py"`). The shell
+  wrap was over-engineering — `hooks/_runner.py` already wraps every
+  hook invocation in `try / except: pass` (Phase A design), so
+  Python-level exceptions never surface. The specific v0.16.6 block
+  ("file not found") was rooted in the broken top-level `hooks.json`
+  with relative paths, which v0.16.8 deleted; without that file the
+  shell wrap protects against nothing real.
+
+  Net effect: hooks.json now matches what Codex plugins normally
+  ship, so Codex's trust dialogs and hash-stability behavior work
+  exactly as designed. After approving the new hashes once,
+  subsequent releases that don't touch hooks.json semantics will
+  keep trust state intact.
+
+### Recovery for users on v0.16.10 or earlier
+
+After updating to v0.16.11:
+1. `codex plugin marketplace upgrade itosdad-agent-output-tracer`
+2. Restart Codex.
+3. On first prompt / first tool call, Codex shows trust dialogs for
+   any hook whose hash changed. Approve each one (these are the
+   standard Codex security prompts; they fire only once per hash).
+4. Subsequent sessions are recorded normally.
+
 ## [0.16.10] — 2026-05-16 — `--data-dir` path overrides host-CLI env in initial theme pick
 
 ### Fixed
