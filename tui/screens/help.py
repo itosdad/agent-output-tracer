@@ -23,9 +23,11 @@ GLOBAL_HELP_ENTRIES: list[tuple[str, str]] = [
     ("esc", "back (or close this help)"),
     ("g / Home", "jump to top"),
     ("G / End", "jump to bottom"),
-    (":", "command palette  (Phase 2.G)"),
+    (":", "command palette"),
     ("?", "this help"),
-    ("t", "toggle theme    (Phase 3)"),
+    ("t", "toggle theme  (codex ↔ claude)"),
+    ("y", "yank highlighted content to clipboard"),
+    ("Opt+drag", "native terminal selection (bypasses TUI mouse capture)"),
     ("q", "quit"),
 ]
 
@@ -72,7 +74,10 @@ class HelpOverlay(ModalScreen[None]):
     def compose(self):
         with Vertical():
             yield Static(self._render_body(), id="help-body", markup=False)
-            yield Static("press any key to close", id="help-footer")
+            yield Static(
+                "press any key to close · Option-drag for terminal selection",
+                id="help-footer",
+            )
 
     def on_key(self, event: events.Key) -> None:
         # Any key closes the overlay — most intuitive for a help popup.

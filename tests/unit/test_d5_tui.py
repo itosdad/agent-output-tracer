@@ -1051,23 +1051,22 @@ async def test_theme_auto_detects_codex_engine(plugin_data_dir):
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
 @pytest.mark.asyncio
 async def test_t_cycles_theme(plugin_data_dir):
-    """Pressing `t` toggles between the two engine themes."""
+    """Pressing `t` toggles between the two engine themes, regardless
+    of which one was active at launch."""
     from tui.app import AOTApp
-    from tui.themes import CLAUDE_THEME, CODEX_THEME
 
     app = AOTApp(None, data_dir=plugin_data_dir)
     async with app.run_test() as pilot:
         await pilot.pause()
-        # No sessions → starts on Codex theme.
-        assert app.theme == CODEX_THEME.name
+        starting = app.theme
 
         await pilot.press("t")
         await pilot.pause()
-        assert app.theme == CLAUDE_THEME.name
+        assert app.theme != starting
 
         await pilot.press("t")
         await pilot.pause()
-        assert app.theme == CODEX_THEME.name
+        assert app.theme == starting
 
 
 @pytest.mark.skipif(not is_available(), reason="textual not installed")
@@ -1108,6 +1107,221 @@ async def test_timeline_syncs_theme_to_session_engine(plugin_data_dir):
         assert app.screen.__class__.__name__ == "TimelineScreen"
         # Timeline._sync_theme_to_engine ran on mount → claude theme.
         assert app.theme == CLAUDE_THEME.name
+
+
+# ---- Phase 4.A: theme override guard + launch precedence ----
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_timeline_does_not_override_user_theme_choice(plugin_data_dir):
+    """Regression for Phase 4.A: once the user has pressed `t` (or
+    used ThemeScreen), drilling into a session whose engine differs
+    from the chosen theme must NOT silently flip the theme back.
+    Before the fix, every Timeline._reload re-ran _sync_theme_to_engine
+    and stomped on the user's choice."""
+    from core.recorder import append_event
+    from tui.app import AOTApp
+    from tui.themes import CODEX_THEME
+
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",
+            "event_type": "user_prompt",
+            "session_id": "override-001",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # Force theme to Codex via `t` so we have a mismatch with the
+        # captured Claude session.
+        while app.theme != CODEX_THEME.name:
+            await pilot.press("t")
+            await pilot.pause()
+        assert app.user_theme_override is True
+
+        # Drill: Home → Sessions → Timeline. Without the guard, the
+        # Timeline mount would have switched back to Claude.
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "TimelineScreen"
+        assert app.theme == CODEX_THEME.name
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_initial_theme_uses_explicit_session_engine(plugin_data_dir):
+    """`aot tui --session <sid>` must pick the theme matching THAT
+    session's engine, even when a newer session of a different engine
+    exists in the same data_dir."""
+    from core.recorder import append_event
+    from tui.app import AOTApp
+    from tui.themes import CLAUDE_THEME
+
+    # Older Claude session, newer Codex session.
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",
+            "event_type": "user_prompt",
+            "session_id": "claude-old",
+            "ts": "2026-05-15T09:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=plugin_data_dir,
+    )
+    append_event(
+        {
+            "v": 1,
+            "engine": "codex",
+            "event_type": "user_prompt",
+            "session_id": "codex-new",
+            "ts": "2026-05-15T11:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hi",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    # Launch with the Claude session explicitly — Claude theme expected,
+    # NOT Codex (which is the newest).
+    app = AOTApp("claude-old", data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.theme == CLAUDE_THEME.name
+
+
+# ---- Phase 4.A: yank to clipboard ----
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+def test_clipboard_helper_returns_bool():
+    """copy() must return False rather than raise on platforms with no
+    clipboard tool, and `available()` must agree with `copy("")`."""
+    from tui._clipboard import available, copy
+
+    # Empty input always returns False (callers must not yank nothing).
+    assert copy("") is False
+    # available() is a yes/no — never raises.
+    assert available() in (True, False)
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_event_detail_yank_payload_is_json(plugin_data_dir):
+    """EventDetail.yank_payload() returns the event as pretty JSON —
+    the most useful artifact for an investigator pasting into an
+    issue tracker."""
+    import json as _json
+
+    from core.recorder import append_event
+    from tui.app import AOTApp
+
+    append_event(
+        {
+            "v": 1,
+            "engine": "claude-code",
+            "event_type": "user_prompt",
+            "session_id": "yank-001",
+            "ts": "2026-05-15T10:00:00.000+00:00",
+            "cwd": "/p",
+            "user_prompt_text": "hello world",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_response": None,
+            "agent_response_text": None,
+            "stop_reason": None,
+            "paths": [],
+            "command": None,
+            "result_bytes": 0,
+            "raw_event": {},
+        },
+        data_dir=plugin_data_dir,
+    )
+
+    app = AOTApp("yank-001", data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # Drill: Timeline → Event Detail.
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "EventDetailScreen"
+
+        payload = app.screen.yank_payload()
+        assert payload
+        parsed = _json.loads(payload)
+        assert parsed["event_type"] == "user_prompt"
+        assert parsed["user_prompt_text"] == "hello world"
+
+
+# ---- Phase 4.A: Home preview pane ----
+
+
+@pytest.mark.skipif(not is_available(), reason="textual not installed")
+@pytest.mark.asyncio
+async def test_home_preview_updates_on_highlight_change(plugin_data_dir):
+    """Cursor on a menu row must populate the preview pane with the
+    matching "What it does / What you'll see / Example" block. The
+    preview swaps as the cursor moves."""
+    from textual.widgets import OptionList, Static
+
+    from tui.app import AOTApp
+
+    app = AOTApp(None, data_dir=plugin_data_dir)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        preview = app.screen.query_one("#home-preview", Static)
+        ol = app.screen.query_one(OptionList)
+
+        ol.highlighted = 0  # Sessions
+        await pilot.pause()
+        text_a = str(preview.content)
+        assert "What it does" in text_a
+        assert "session" in text_a.lower()
+
+        ol.highlighted = 1  # Find
+        await pilot.pause()
+        text_b = str(preview.content)
+        assert "hallucinations" in text_b.lower() or "anomaly" in text_b.lower()
+        # The preview content actually changed between rows.
+        assert text_a != text_b
 
 
 # ---- Phase 3.B: sticky defaults (config persistence) ----

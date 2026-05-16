@@ -201,14 +201,27 @@ class TimelineScreen(AOTScreen):
 
     def _sync_theme_to_engine(self) -> None:
         """Match the active Textual theme to the session's `engine`
-        field. Best-effort — we don't want a stale metadata read to
-        propagate as a UI exception."""
+        field — UNLESS the user has explicitly chosen a theme this
+        session (via `t` or ThemeScreen). Without that guard, every
+        Timeline reload silently overrode the user's choice, which is
+        exactly the bug the v0.15.0 fix targets.
+
+        Best-effort — a stale metadata read must not propagate as a
+        UI exception.
+        """
         try:
+            if getattr(self.app, "user_theme_override", False):
+                return
             from core.session_io import load_metadata
             from tui.themes import theme_for_engine
 
             meta = load_metadata(self.session_id, data_dir=self._data_dir) or {}
-            wanted = theme_for_engine(meta.get("engine"))
+            engine = meta.get("engine")
+            # Don't downgrade to the default theme when metadata is
+            # missing the engine field — preserve whatever is active.
+            if not engine:
+                return
+            wanted = theme_for_engine(engine)
             if self.app.theme != wanted:
                 self.app.theme = wanted
         except Exception:

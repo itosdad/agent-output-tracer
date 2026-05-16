@@ -7,6 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-05-16 — Phase 4.A: theme override fix, menu preview pane, clipboard yank
+
+Phase 3 is closed (v0.10.0 → v0.14.1). Phase 4 opens with the bug
+sweep and UX foundation that turns the TUI from "data dump" into a
+discoverable tool.
+
+### Fixed
+
+- **Timeline silently flipped the theme back on every reload.**
+  `_sync_theme_to_engine()` re-applied the session's engine theme
+  on every `_reload()` (including from `r` refresh, follow events,
+  navigation), wiping out any manual choice the user had made via
+  `t` or the ThemeScreen. Now the helper consults a new
+  `app.user_theme_override` flag set by either explicit-choice
+  path and short-circuits when it's True. Auto-detect still runs
+  on launch.
+
+- **Launch theme didn't follow the session you're actually
+  opening.** `aot tui --session <sid>` always picked the newest
+  captured session's engine, so opening an older Claude session
+  in a Codex-dominated data_dir landed you on cyan. New precedence:
+  explicit `--session` → newest session → env-var hint
+  (`CLAUDE_PLUGIN_DATA` / `CODEX_PLUGIN_DATA` for "first launch
+  inside that CLI environment") → codex default.
+
+### Added
+
+- **Home preview pane.** Below the function picker, a Static pane
+  shows three lines for the highlighted menu item: "What it does",
+  "What you'll see", "Example finding". Updates live as the cursor
+  steps through. Operators no longer have to drill into every
+  function just to find out what's inside.
+
+- **Sessions preview pane.** Same pattern: highlight a session and
+  the pane shows engine / span / cwd / event count / prompt mix /
+  byte total / top tools / top anomaly counters from `metadata.json`.
+  Decide whether to drill in without leaving the list.
+
+- **Clipboard yank (`y`).** Universal `y` binding on AOTScreen
+  copies the screen's payload to the system clipboard. Each screen
+  decides what "payload" means via a `yank_payload()` hook:
+  - EventDetail → the structured event as pretty JSON
+  - Stats / Doctor → the rendered body text
+  - Timeline / Sessions / Find / Search → the highlighted row's
+    plain text (default `_focused_text()` fallback)
+  Clipboard wrapper (`tui/_clipboard.py`) shells out to
+  `pbcopy` / `xclip` / `xsel` / `wl-copy` / `clip` — no
+  third-party dep. Native terminal selection still works via
+  Option-drag (iTerm2 / Terminal.app / Kitty); the help overlay
+  now documents both paths.
+
+- **Help overlay globals updated.** Adds `y` yank and Opt+drag
+  notes to the universal keybind list. Drops the Phase markers
+  from `:` and `t` since both are now real.
+
+### Tests
+
+- 4 new Pilot tests:
+  - Timeline drill does NOT override a user's manual theme choice
+  - `--session <sid>` picks that session's engine theme even when
+    the newest captured session is a different engine
+  - `EventDetail.yank_payload()` returns valid event JSON
+  - Home preview pane updates as the OptionList cursor moves
+
+- 1 unit test: `tui._clipboard.copy("")` returns False, `available()`
+  returns bool — no crashes on platforms without a clipboard tool.
+
+### Notes
+
+The Phase 4 plan (4.A done, 4.B-4.D pending):
+- 4.B — Diagnostic Brief: one-screen session executive summary
+  (verdict, top anomalies, activity profile, hot files / phrases,
+  timeline sparkline). The "why use this tool" answer.
+- 4.C — Context Reconstruction: for an `agent_response`, surface
+  what the agent actually saw (Read history head + tool outputs)
+  to investigate hallucinations.
+- 4.D — Session Compare + Pattern Detection: diff two sessions;
+  detect recurring anomalies across the whole capture.
+
 ## [0.14.1] — 2026-05-16 — Unify accent colour under the active theme
 
 ### Fixed

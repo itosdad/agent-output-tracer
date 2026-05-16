@@ -52,6 +52,9 @@ class AOTScreen(Screen):
         # setups (notably JIS keyboards via certain IMEs) intercept
         # the literal `?` character before Textual sees it.
         Binding("question_mark,f1", "noop_help", "help", show=False),
+        # `y` yanks the screen's payload to the clipboard. Each screen
+        # decides what "payload" means via the `yank_payload()` hook.
+        Binding("y", "yank", "yank", show=False),
     ]
 
     TITLE: str = "screen"
@@ -177,12 +180,61 @@ class AOTScreen(Screen):
         data_dir = getattr(self.app, "_data_dir", None)
         self.app.push_screen(CommandPalette(data_dir=data_dir))
 
+    def action_yank(self) -> None:
+        """Copy the screen's current payload to the system clipboard.
+
+        Default implementation tries `yank_payload()` first (subclass
+        hook), then falls back to the focused widget's plain text.
+        Notifies success/failure via toast so the operator gets
+        confirmation that the paste buffer is now populated.
+        """
+        from tui._clipboard import copy
+
+        payload = ""
+        try:
+            payload = self.yank_payload() or ""
+        except Exception:
+            payload = ""
+        if not payload:
+            # Fallback: yank the focused widget's plain text (Static body,
+            # OptionList highlighted row, Input value, etc.).
+            payload = _focused_text(self) or ""
+        if not payload:
+            self.app.bell()
+            self.app.notify("nothing to yank", severity="warning", title="aot", timeout=1)
+            return
+        if copy(payload):
+            self.app.notify(
+                f"yanked {len(payload)} chars to clipboard",
+                severity="information",
+                title="aot",
+                timeout=2,
+            )
+        else:
+            self.app.notify(
+                "clipboard tool not found (install pbcopy / xclip / xsel)",
+                severity="error",
+                title="aot",
+                timeout=3,
+            )
+
+    def yank_payload(self) -> str:
+        """Subclass hook — return the string to yank on `y`. Empty
+        string falls back to the focused widget's plain text."""
+        return ""
+
     def action_noop_theme(self) -> None:
-        """`t` — cycle through the registered engine themes."""
+        """`t` — cycle through the registered engine themes.
+
+        Sets `app.user_theme_override` so Timeline._sync_theme_to_engine
+        stops silently flipping the theme back to the session's engine
+        on every reload (the v0.15.0 fix).
+        """
         from tui.themes import next_theme
 
         try:
             self.app.theme = next_theme(self.app.theme)
+            self.app.user_theme_override = True
             self.app.notify(
                 f"theme: {self.app.theme}",
                 severity="information",
@@ -191,3 +243,32 @@ class AOTScreen(Screen):
             )
         except Exception:
             self.app.bell()
+
+
+def _focused_text(screen) -> str:
+    """Default `y` payload — plain text of whatever has focus.
+
+    Handles the common cases: OptionList (yanks the highlighted row's
+    prompt), Input (current value), Static (rendered content).
+    Returns empty string if nothing usable is focused.
+    """
+    try:
+        from textual.widgets import Input, OptionList, Static
+    except ImportError:
+        return ""
+    target = screen.focused
+    if target is None:
+        return ""
+    if isinstance(target, OptionList):
+        try:
+            opt = target.get_option_at_index(target.highlighted)
+        except Exception:
+            return ""
+        prompt = opt.prompt
+        return prompt.plain if hasattr(prompt, "plain") else str(prompt)
+    if isinstance(target, Input):
+        return str(target.value or "")
+    if isinstance(target, Static):
+        content = target.content
+        return content.plain if hasattr(content, "plain") else str(content)
+    return ""

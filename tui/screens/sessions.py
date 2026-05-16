@@ -15,16 +15,28 @@ from __future__ import annotations
 
 from rich.text import Text
 from textual.binding import Binding
-from textual.widgets import OptionList
+from textual.containers import Vertical
+from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
-from core.session_io import list_sessions
+from core.session_io import list_sessions, load_metadata
 from core.time_utils import short_time
 from tui.router import AOTScreen
 
 
 class SessionsScreen(AOTScreen):
     TITLE = "sessions"
+
+    DEFAULT_CSS = """
+    SessionsScreen #sessions-list {
+        height: auto;
+        max-height: 55%;
+    }
+    SessionsScreen #sessions-preview {
+        padding: 1 1 0 1;
+        background: $surface;
+    }
+    """
 
     BINDINGS = [
         Binding("enter", "open", "open", show=False),
@@ -70,7 +82,13 @@ class SessionsScreen(AOTScreen):
         ]
 
     def compose_body(self):
-        yield OptionList(id="sessions-list")
+        with Vertical():
+            yield OptionList(id="sessions-list")
+            yield Static(
+                "(highlight a session to see details)",
+                id="sessions-preview",
+                markup=False,
+            )
 
     def on_mount(self) -> None:
         self._reload()
@@ -87,6 +105,24 @@ class SessionsScreen(AOTScreen):
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Primary drill-in path: OptionList's own Enter handler."""
         self._open_by_id(event.option.id or "")
+
+    def on_option_list_option_highlighted(self, event: OptionList.OptionHighlighted) -> None:
+        """Refresh the per-session preview as the cursor steps through.
+
+        The preview reads `metadata.json` for the highlighted session
+        — engine, span, event count, byte total, top anomaly counters
+        — so the operator can decide whether to drill in without
+        opening the full Timeline. Best-effort; missing fields just
+        render as `?`."""
+        sid = event.option.id or ""
+        if not sid or not sid.startswith(("/", "")):
+            pass
+        try:
+            self.query_one("#sessions-preview", Static).update(
+                _render_session_preview(sid, data_dir=self._data_dir)
+            )
+        except Exception:
+            pass
 
     def _open_highlighted(self) -> None:
         ol = self.query_one(OptionList)
@@ -212,6 +248,70 @@ def _run_export(app, session_id: str, values: dict | None, data_dir) -> None:
         return
     label = output or "(stdout)"
     app.notify(f"exported → {label}", severity="information", title="aot", timeout=3)
+
+
+def _render_session_preview(sid: str, *, data_dir) -> Text:
+    """Per-session preview card shown below the list. Pulls everything
+    from metadata.json — no extra event-file scan, so the highlight
+    callback stays cheap (cursor stepping must not stutter)."""
+    text = Text()
+    if not sid:
+        text.append("(no session highlighted)", style="dim italic")
+        return text
+    try:
+        meta = load_metadata(sid, data_dir=data_dir) or {}
+    except Exception:
+        text.append(f"(failed to load metadata for {sid[:8]})", style="dim italic")
+        return text
+
+    engine = meta.get("engine") or "?"
+    ts_start = short_time(meta.get("ts_start"))
+    ts_end = short_time(meta.get("ts_end"))
+    events_total = meta.get("events_total") or meta.get("tool_calls_total") or 0
+    bytes_read = meta.get("total_bytes_read") or 0
+    user_prompts = meta.get("user_prompts") or 0
+    agent_responses = meta.get("agent_responses") or 0
+    anomalies = meta.get("anomaly_counters") or {}
+    tool_mix = meta.get("tool_mix") or {}
+    cwd = meta.get("cwd") or ""
+
+    text.append(f"{sid}\n", style="bold")
+    text.append("  engine ", style="dim")
+    text.append(engine)
+    text.append("    span ", style="dim")
+    text.append(f"{ts_start} → {ts_end}")
+    text.append("    cwd ", style="dim")
+    text.append(cwd if cwd else "?", style="dim italic")
+    text.append("\n")
+
+    text.append("  events ", style="dim")
+    text.append(f"{events_total}")
+    text.append("  ·  prompts ", style="dim")
+    text.append(f"{user_prompts}u / {agent_responses}a")
+    if bytes_read:
+        text.append("  ·  read ", style="dim")
+        text.append(_human_bytes(bytes_read))
+    text.append("\n")
+
+    if tool_mix:
+        items = sorted(tool_mix.items(), key=lambda kv: -kv[1])[:5]
+        text.append("  tools  ", style="dim")
+        text.append(" · ".join(f"{n} {c}" for n, c in items))
+        text.append("\n")
+
+    if anomalies:
+        items = sorted(anomalies.items(), key=lambda kv: -kv[1])[:5]
+        text.append("  anom   ", style="dim")
+        text.append(" · ".join(f"{n} {c}" for n, c in items), style="yellow")
+    return text
+
+
+def _human_bytes(n: int) -> str:
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024:
+            return f"{n:.0f} {unit}" if unit != "B" else f"{n} {unit}"
+        n = int(n / 1024)
+    return f"{n} TB"
 
 
 def _render_session(meta: dict, *, is_latest: bool, accent_col: str = "cyan") -> Text:

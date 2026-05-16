@@ -17,12 +17,13 @@ from this module.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 
-from core.session_io import list_sessions
+from core.session_io import list_sessions, load_metadata
 from core.session_resolver import resolve_session_id
 from tui.screens.home import HomeScreen
 from tui.screens.sessions import SessionsScreen
@@ -56,6 +57,11 @@ class AOTApp(App):
         self._data_dir = data_dir
         # Back-compat for the D-5 smoke test that asserts app.session_id.
         self.session_id = session_id or ""
+        # Once the user has explicitly chosen a theme (via `t` or the
+        # ThemeScreen), Timeline._sync_theme_to_engine must stop
+        # silently overriding their choice on every reload. This flag
+        # carries the user's intent across screen pushes.
+        self.user_theme_override: bool = False
 
     def compose(self) -> ComposeResult:
         yield StatusBar()
@@ -79,16 +85,45 @@ class AOTApp(App):
             self.push_screen(TimelineScreen(resolved, data_dir=self._data_dir))
 
     def _initial_theme_name(self) -> str:
-        """Pick a starting theme based on the most recently captured
-        session's engine, so a developer who lives in Claude Code
-        opens the TUI and immediately sees the salmon accent without
-        having to press `t`."""
+        """Pick a starting theme. Precedence:
+
+        1. If `--session <sid>` was provided, use THAT session's engine.
+           Otherwise a user opening a Claude session on a Codex-newest
+           data_dir would land on cyan and have to press `t` every
+           launch — surprising.
+        2. Else, fall back to the newest captured session's engine.
+        3. Else (no sessions at all), if CLAUDE_PLUGIN_DATA /
+           CODEX_PLUGIN_DATA / *_PLUGIN_ROOT is set, the operator is
+           running aot from inside that engine's CLI environment —
+           use that as a "first launch with no data yet" hint.
+        4. Else, codex as the universal default (cyan is safer across
+           the variety of terminal palettes).
+        """
+        # 1) explicit session wins
+        if self._initial_session:
+            try:
+                resolved = resolve_session_id(self._initial_session, data_dir=self._data_dir)
+                meta = load_metadata(resolved, data_dir=self._data_dir) or {}
+                if engine := meta.get("engine"):
+                    return theme_for_engine(engine)
+            except Exception:
+                pass
+        # 2) newest session
         try:
             sessions = list_sessions(data_dir=self._data_dir)
         except Exception:
             sessions = []
-        engine = (sessions[0].get("engine") if sessions else None) or ""
-        return theme_for_engine(engine)
+        if sessions:
+            engine = sessions[0].get("engine") or ""
+            if engine:
+                return theme_for_engine(engine)
+        # 3) env-var hint — only useful when nothing is captured yet
+        if os.environ.get("CLAUDE_PLUGIN_DATA") or os.environ.get("CLAUDE_PLUGIN_ROOT"):
+            return theme_for_engine("claude-code")
+        if os.environ.get("CODEX_PLUGIN_DATA") or os.environ.get("CODEX_PLUGIN_ROOT"):
+            return theme_for_engine("codex")
+        # 4) universal default
+        return theme_for_engine("")
 
 
 # ------------- entry point -------------

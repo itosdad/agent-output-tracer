@@ -86,6 +86,9 @@ class ThemeScreen(AOTScreen):
             return
         try:
             self.app.theme = name
+            # Same as `t` — record the user's explicit choice so
+            # Timeline reloads don't silently flip it back.
+            self.app.user_theme_override = True
             self.app.notify(f"theme: {name}", severity="information", title="aot", timeout=1)
         except Exception:
             self.app.bell()

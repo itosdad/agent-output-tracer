@@ -67,6 +67,13 @@ class DoctorScreen(AOTScreen):
     def action_refresh(self) -> None:
         self._refresh_view()
 
+    def yank_payload(self) -> str:
+        try:
+            content = self.query_one("#doctor-body", Static).content
+            return content.plain if hasattr(content, "plain") else str(content)
+        except Exception:
+            return ""
+
     def _refresh_view(self) -> None:
         try:
             result = _doctor(data_dir=self._data_dir, fmt="json")

@@ -113,15 +113,13 @@ class EventDetailScreen(AOTScreen):
             self._show_raw = False
         self._refresh_view()
 
-    def action_yank(self) -> None:
-        # Phase 1: best-effort clipboard via pyperclip if available.
+    def yank_payload(self) -> str:
+        """Yank the structured event as pretty JSON — the most useful
+        artifact for an investigator pasting into a bug report."""
         try:
-            import pyperclip
-
-            pyperclip.copy(json.dumps(self._event, ensure_ascii=False, indent=2))
-            self.app.bell()
+            return json.dumps(self._event, ensure_ascii=False, indent=2)
         except Exception:
-            self.app.bell()
+            return ""
 
     def action_noop_note(self) -> None:
         from tui.screens.note_modal import NoteModal

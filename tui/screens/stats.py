@@ -60,6 +60,15 @@ class StatsScreen(AOTScreen):
     def action_refresh(self) -> None:
         self._refresh_view()
 
+    def yank_payload(self) -> str:
+        """Yank the rendered stats body — useful for pasting a session
+        summary into an issue tracker."""
+        try:
+            content = self.query_one("#stats-body", Static).content
+            return content.plain if hasattr(content, "plain") else str(content)
+        except Exception:
+            return ""
+
     def _refresh_view(self) -> None:
         try:
             resolved = resolve_session_id(self.session_id, data_dir=self._data_dir)

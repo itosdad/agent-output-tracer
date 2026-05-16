@@ -1,19 +1,18 @@
 """Home screen — function picker.
 
-Lists the top-level tracer functions (Sessions / Find / Trace /
-Search / Stats / Doctor / Theme / Config). Enter on a row drills into
-that function. This is the canonical entry point of the TUI.
-
-In Phase 1 only Sessions is wired to a real screen; the rest are
-visible but marked `(Phase 2)` so the navigation model is discoverable
-from day one.
+Lists the top-level tracer functions and renders a preview pane below
+the list explaining what the highlighted function does, what data it
+shows, and an example finding. The preview pane is the v0.15.0 fix
+for "the menu items are opaque — I don't know what I'm picking" —
+operators no longer have to drill in just to find out what's inside.
 """
 
 from __future__ import annotations
 
 from rich.text import Text
 from textual.binding import Binding
-from textual.widgets import OptionList
+from textual.containers import Vertical
+from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
 from tui.router import AOTScreen
@@ -30,9 +29,90 @@ def _menu_item(key: str, name: str, desc: str, available: bool = True) -> Option
     return Option(text, id=key, disabled=not available)
 
 
+# Preview content per menu key. Three lines each — "what it does",
+# "what you'll see", "example finding". Concrete examples > abstract
+# taglines (the old "anomaly vocabulary detection" told you nothing).
+_PREVIEWS: dict[str, tuple[str, str, str]] = {
+    "sessions": (
+        "Browse every captured session — newest first, with engine, "
+        "event count, and end time per row.",
+        "Each row: ● <session-id-8>  <engine> · N events · HH:MM.",
+        "Enter drills into the Timeline; S/T/F open Stats/Timeline/Find scoped to the row.",
+    ),
+    "find": (
+        "Run one of ten anomaly detectors against a session: "
+        "hallucinations, unmentioned-reads, repeated-reads, "
+        "glob-burst, large-read, silent-failure, and more.",
+        "A match list — one row per finding, with event index and the offending token/path/tool.",
+        "e.g. 'agent named /a/b.md but no Read ever fetched it (event 47, hallucinations)'.",
+    ),
+    "trace": (
+        "Given a phrase the agent emitted, walk the event log backward "
+        "to find the first event that introduced it.",
+        "A causal trail card: first mention timestamp, source event, intermediate touches.",
+        "e.g. trace 'hooks_wiring' → first appeared in Read of doctor.py at 19:42.",
+    ),
+    "search": (
+        "Regex full-text search across every searchable field of every "
+        "event in the latest session.",
+        "Each row: event-type.field · event N · matched preview (120-char window).",
+        "e.g. /JWT|token/ surfaces 5 matches across tool_response and agent_response.",
+    ),
+    "stats": (
+        "One-screen metrics card for a session: tool mix, prompt counts, "
+        "byte totals, anomaly counters, token usage.",
+        "Bullet list with sub-headings (Tools, Files, Anomalies, Tokens).",
+        "e.g. 'Read 18 · Bash 4 · Edit 2  ·  3 unique paths · 14 KB read'.",
+    ),
+    "doctor": (
+        "Self-diagnostic: confirms the recorder pipeline is healthy.",
+        "Checks: runtime, data_dir, recent_sessions, hooks_wiring — each ✓ / ⚠ / ✗.",
+        "e.g. ⚠ data_dir exists but sessions/ has not been created (fix: trigger any tool call).",
+    ),
+    "theme": (
+        "Switch between the two engine-flavoured themes: aot-codex (cyan) and aot-claude (salmon).",
+        "A short picker; the active theme has a ● marker.",
+        "`t` from any screen does the same cycle; this picker exposes both choices side by side.",
+    ),
+    "config": (
+        "View the sticky defaults persisted to ~/.config/aot/config.toml: "
+        "last Find vocab, Trace phrase, Search regex, Export knobs.",
+        "Each saved key with its value, plus the config-file path.",
+        "`c` clears all sticky defaults; `r` re-reads from disk.",
+    ),
+}
+
+
+def _render_preview(key: str) -> Text:
+    text = Text()
+    entry = _PREVIEWS.get(key)
+    if entry is None:
+        text.append("(no preview)", style="dim italic")
+        return text
+    what, sees, example = entry
+    text.append("What it does\n", style="bold")
+    text.append(f"  {what}\n\n", style="dim")
+    text.append("What you'll see\n", style="bold")
+    text.append(f"  {sees}\n\n", style="dim")
+    text.append("Example\n", style="bold")
+    text.append(f"  {example}", style="dim italic")
+    return text
+
+
 class HomeScreen(AOTScreen):
     TITLE = "home"
     IS_ROOT = True  # Esc on Home is a no-op — see AOTScreen.action_safe_back.
+
+    DEFAULT_CSS = """
+    HomeScreen #home-list {
+        height: auto;
+        max-height: 50%;
+    }
+    HomeScreen #home-preview {
+        padding: 1 1 0 1;
+        background: $surface;
+    }
+    """
 
     BINDINGS = [
         Binding("enter", "select", "open", show=False),
@@ -44,28 +124,55 @@ class HomeScreen(AOTScreen):
     def footer_hints(self) -> list[tuple[str, str]]:
         return [
             ("↑↓", "select"),
-            ("g/G", "top/bot"),
             ("enter", "open"),
             (":", "cmd"),
             ("?", "help"),
             ("q", "quit"),
         ]
 
+    def help_entries(self) -> list[tuple[str, str]]:
+        return [
+            ("↑↓", "select a function — preview updates below"),
+            ("g / G", "first / last function"),
+            ("enter", "open the highlighted function"),
+            (":", "command palette (jump anywhere by name)"),
+            ("t", "cycle theme  (codex ↔ claude)"),
+        ]
+
     def compose_body(self):
-        yield OptionList(
-            _menu_item("sessions", "Sessions", "browse captured sessions"),
-            _menu_item("find", "Find", "anomaly vocabulary detection"),
-            _menu_item("trace", "Trace", "causal trail for an output phrase"),
-            _menu_item("search", "Search", "regex search in the latest session"),
-            _menu_item("stats", "Stats", "session metrics"),
-            _menu_item("doctor", "Doctor", "self-diagnostic"),
-            _menu_item("theme", "Theme", "switch engine theme (codex / claude)"),
-            _menu_item("config", "Config", "sticky defaults · history viewer"),
-            id="home-list",
-        )
+        with Vertical():
+            yield OptionList(
+                _menu_item(
+                    "sessions",
+                    "Sessions",
+                    "list of captured sessions, engine + event count per row",
+                ),
+                _menu_item(
+                    "find", "Find", "ten anomaly detectors (hallucinations, unmentioned-reads, …)"
+                ),
+                _menu_item(
+                    "trace", "Trace", "causal back-walk: where did this output phrase come from?"
+                ),
+                _menu_item("search", "Search", "regex full-text across every event field"),
+                _menu_item(
+                    "stats", "Stats", "one-screen session metrics (tools, anomalies, tokens)"
+                ),
+                _menu_item("doctor", "Doctor", "self-diagnostic: recorder pipeline health"),
+                _menu_item("theme", "Theme", "switch engine accent (codex cyan / claude salmon)"),
+                _menu_item("config", "Config", "view and clear sticky defaults"),
+                id="home-list",
+            )
+            yield Static(_render_preview("sessions"), id="home-preview", markup=False)
 
     def on_mount(self) -> None:
         self.query_one(OptionList).focus()
+
+    def on_option_list_option_highlighted(self, event: OptionList.OptionHighlighted) -> None:
+        """Update the preview pane as the user steps through the menu."""
+        try:
+            self.query_one("#home-preview", Static).update(_render_preview(event.option.id or ""))
+        except Exception:
+            pass
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         self._route(event.option.id or "")
