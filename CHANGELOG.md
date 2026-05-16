@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.4] — 2026-05-16 — Plugin manifest version sync (cache-invalidation release)
+
+### Fixed
+
+- **Plugin marketplace cache was frozen at v0.6.0**, so every Claude
+  Code / Codex install was running the pre-v0.16.1 hook code despite
+  `aot` (the CLI/TUI side) tracking with `pyproject.toml`. Symptom: all
+  Claude Code sessions captured by the installed plugin were tagged
+  `engine: codex` because the old `_detect_engine` keyed on
+  `permission_mode`, which Claude Code adopted after the heuristic was
+  written. v0.16.1 fixed the detector in the repo (`hooks/_runner.py`
+  now keys on `hook_event_name` casing) but the cache never picked it
+  up — Claude Code's plugin manager keys cache entries on the
+  `version` field of `plugin.json`, and that field had not moved since
+  v0.6.0 (release commit `571e34e`).
+
+  Bumped `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`
+  from `0.6.0` → `0.16.4` (aligned with `pyproject.toml`) so a single
+  semver line drives both the CLI release and the plugin cache key
+  going forward. After updating the marketplace and reinstalling,
+  newly captured sessions will be correctly tagged.
+
+  Old sessions still carry `engine: codex` in their `metadata.json`;
+  the Timeline screen already reads engine from the event stream
+  (v0.16.2 fix) so they display under the right theme regardless.
+
 ### Docs / chores
 
 - README now covers Stats / Theme / Config screens (screenshots added).
