@@ -57,8 +57,8 @@ for Claude Code. Press `t` to toggle, `?` for help.
 
 <table>
 <tr>
-<td><img src="docs/img/home-codex.svg" alt="Home (Codex)"></td>
-<td><img src="docs/img/home-claude.svg" alt="Home (Claude Code)"></td>
+<td><img src="docs/img/home-codex.svg" width="450" alt="Home (Codex)"></td>
+<td><img src="docs/img/home-claude.svg" width="450" alt="Home (Claude Code)"></td>
 </tr>
 </table>
 
@@ -148,8 +148,8 @@ error palette. If anything is wrong, the `fix:` line tells you what to do.
 
 <table>
 <tr>
-<td><img src="docs/img/theme-claude.svg" alt="Theme picker (Claude)"></td>
-<td><img src="docs/img/config-claude.svg" alt="Config viewer (Claude)"></td>
+<td><img src="docs/img/theme-claude.svg" width="450" alt="Theme picker (Claude)"></td>
+<td><img src="docs/img/config-claude.svg" width="450" alt="Config viewer (Claude)"></td>
 </tr>
 </table>
 

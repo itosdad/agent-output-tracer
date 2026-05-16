@@ -285,6 +285,38 @@ def _redact_real_paths(svg_dir: Path) -> int:
     return changed
 
 
+def _add_root_dimensions(svg_dir: Path) -> int:
+    """Add explicit `width` / `height` attributes to the `<svg>` root.
+
+    Rich's screenshot writer emits `<svg ... viewBox="0 0 W H" ...>`
+    without intrinsic dimensions. That works in most browsers, but
+    GitHub's image rendering inside `<img>` tags has been observed to
+    collapse such SVGs to 0×0 on the repository home page (the canonical
+    URL `github.com/<owner>/<repo>`) while rendering fine on the blob
+    view. Pulling W/H out of `viewBox` and pinning them to the root
+    makes the file self-describing and stable across both contexts.
+    Returns the number of files modified.
+    """
+    import re as _re
+
+    pat = _re.compile(r'(<svg\b[^>]*?\bviewBox="0 0 ([\d.]+) ([\d.]+)")')
+    changed = 0
+    for svg in svg_dir.glob("*.svg"):
+        text = svg.read_text()
+        if 'width="' in text.split(">", 1)[0]:
+            continue  # already has width on the root tag
+        m = pat.search(text)
+        if not m:
+            continue
+        head, w, h = m.group(1), m.group(2), m.group(3)
+        new_head = f'{head} width="{w}" height="{h}"'
+        new = text.replace(head, new_head, 1)
+        if new != text:
+            svg.write_text(new)
+            changed += 1
+    return changed
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -302,6 +334,9 @@ def main() -> None:
     redacted = _redact_real_paths(args.out)
     if redacted:
         print(f"# redacted real paths in {redacted} svg(s)")
+    dimensioned = _add_root_dimensions(args.out)
+    if dimensioned:
+        print(f"# added root width/height to {dimensioned} svg(s)")
 
     written = sorted(args.out.glob("*.svg"))
     for p in written:
