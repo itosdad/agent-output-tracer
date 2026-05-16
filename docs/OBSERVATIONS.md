@@ -123,10 +123,97 @@ GitHub repo `itosdad/agent-output-tracer` 公開準備中。設計 doc §14.3 �
 
 - **marketplace-less 直接 install (`/plugin add owner/repo` 等) があるか** — 公式 docs 上未確認。Phase A-11 実機 verify 推奨だが現状の marketplace flow で目的達成できるので低優先
 
+---
+
+## 2026-05-16 — Claude Code が `permission_mode` を全イベントに送るようになり engine 誤判定
+
+### コンテキスト
+
+v0.7.0 で導入した `hooks/_runner.py::_detect_engine` は「`permission_mode` フィールドが
+ある = Codex」というヒューリスティクスを使っていた。当時 Codex 側 schema にだけ存在
+していたフィールドだったため。しかし v0.16.x 期間に Claude Code も全イベントに
+`permission_mode: "auto"` を載せるようになり、すべての Claude Code event が
+**Codex engine と誤判定 → codex adapter で正規化**されるようになっていた。
+
+### 一次資料
+
+- `~/.claude/plugins/data/agent-output-tracer-itosdad-agent-output-tracer/sessions/781ff3fa-9a21-4107-ad31-d089ecd1ee56/events.jsonl`
+- 40 件すべての `agent_response` event の `raw_event` keys:
+  `['cwd', 'hook_event_name', 'last_assistant_message', 'permission_mode', 'session_id', 'stop_hook_active', 'transcript_path']`
+- `hook_event_name` は CamelCase の `Stop` → Claude Code、それでも `permission_mode` 持ち
+
+### 観察
+
+1. **見かけ上は壊れていないが engine field が全件 codex に固定されていた**
+   - 両 adapter が `last_assistant_message` を読むため `agent_response_text` は populate されていた
+   - しかし `metadata.engine = "codex"` が初回イベント時に焼き付き、theme auto-detect、
+     anomaly counters、tool mix の engine 別集計が全部壊れていた
+
+2. **真に堅牢な discriminator は `hook_event_name` の casing**
+   - Codex: snake_case (`stop`, `pre_tool_use`)
+   - Claude Code: CamelCase (`Stop`, `PreToolUse`)
+   - フィールドの有無で判定すると engine 側仕様変更で誤判定が起きるが、casing は
+     両 engine とも歴史的に動かしていない
+
+3. **反映: v0.16.1 で casing を一次シグナルに変更、`permission_mode` は tail fallback に降格**
+   - `hooks/_runner.py::_detect_engine`
+   - `tests/integration/test_codex_hook_scripts.py::test_engine_detection_claude_payload_with_permission_mode`
+
+---
+
+## 2026-05-16 — Stale `metadata.engine` が Timeline theme を狂わせる
+
+### コンテキスト
+
+v0.16.1 の engine detector 修正後も、それ以前に記録された session の
+`metadata.json` には誤判定の名残で `engine: "codex"` が焼き付いたまま。
+`core/recorder.py` は metadata.engine を初回イベント時に一度だけ書き、以後更新しない
+仕様なので、修正後も古い session の metadata.engine は永久に間違ったまま残る。
+
+`tui/screens/timeline.py::_sync_theme_to_engine` が metadata.engine を読んでいたため、
+Claude Code session の Timeline を開くたびに毎 reload で theme が Codex に強制
+切替され、user が `t` で salmon を選んでいても上書きされていた。
+
+### 観察
+
+1. **metadata は first-write-wins。誤った値は永続化する**
+   - 後から rebuilt したり migration したりする経路は現状ない
+   - 同等の問題は engine 以外のフィールドにも潜在しうる
+
+2. **theme 判定は metadata でなく events から行うのが正しい**
+   - `tui/screens/timeline.py::_majority_engine(events)` を新設、events 配列から
+     多数決で engine を決定。stale metadata の影響を受けない
+   - 反映: v0.16.2
+
+3. **`user_theme_override` flag は別の話**
+   - 手動 `t` 切替の保護のために v0.15.0 で導入済。今回の修正と直交
+
+---
+
+## 2026-05-16 — TUI alignment が画面中央寄せになる症状
+
+### コンテキスト
+
+Stats / Doctor / Trace / Search / Config のような短い content を持つ screen で、
+body 部分が viewport の縦中央に寄って表示されていた。Timeline のような full-height
+screen は問題なし。
+
+### 観察
+
+1. **Textual の Container default は短い content の場合に縦中央寄せになる**
+   - 明示的に `align: left top` を指定しないと viewport の中央に置かれる
+   - long content では `height: 1fr` が効くので問題が表面化しない
+
+2. **反映: v0.16.2 で `tui/themes/base.tcss` の `AOTScreen > .body` と nested
+   `Vertical` wrapper に `align: left top; content-align: left top;` を明示**
+
+---
+
 ### 運用ルール
 
 - 実機検証で「設計 doc / コードと違った」ことがあれば、ここに 1 ブロック追加する
 - 反映先 (doc / code path) を明記する。後から「この観察はどこに反映されている？」を辿れるように
 - 一次資料 (events.jsonl, metadata.json, session_id 等) を必ず書く。再現性のため
 - 「未決」項目は次の verify trigger を書く（Phase 番号 or 条件）
-- ここは log であって正本ではない。正本は `docs/DESIGN.md` / コード本体
+- ここは log であって正本ではない。正本は `README.md` / `docs/TUI.md` / コード本体
+  （`docs/DESIGN.md` / `docs/DESIGN_FORENSIC_UX.md` は historical baseline）

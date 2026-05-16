@@ -24,6 +24,27 @@ handoff_notes:
   - 未検証項目は §11 に集約、実装着手前に一次資料 verify を済ませること
 ---
 
+# ⚠ Historical baseline — Phase D design draft (2026-05-15)
+
+This document is the **pre-implementation design** of Phase D
+(forensic UX power-up + TUI side-channel). It is preserved as the
+historical record of how Phase D was scoped before code was written.
+
+For the **current state**, refer to:
+
+- [`README.md`](../README.md) — overview, screenshots, current
+  status table covering Phase D + TUI Phase 1–4.A as shipped
+- [`docs/TUI.md`](TUI.md) — comprehensive TUI guide
+- [`CHANGELOG.md`](../CHANGELOG.md) — per-version diff
+
+Implementation has shipped Phase D in full plus the TUI Phase 1–4.A
+that wasn't in the original draft (engine themes, OhMyZsh-style
+banner, menu preview pane, clipboard yank, sticky defaults, etc.).
+This document is not deleted because the §1 思想軸 / §2 design
+principles are still load-bearing for PR review.
+
+---
+
 # 0. Executive Summary
 
 ## 0.1 一言で

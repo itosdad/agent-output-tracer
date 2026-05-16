@@ -243,9 +243,14 @@ pip uninstall agent-output-tracer
 
 ## Optional extra: `[tui]` — side-channel TUI
 
-The `aot tui` command opens a textual-based interactive UI that
-follows `events.jsonl` live, in its own pane. Best run alongside
+The `aot tui` command opens a textual-based interactive inspector
+that follows `events.jsonl` live, in its own pane. Best run alongside
 Claude Code / Codex in a tmux split or iTerm pane.
+
+This is the **primary surface** of the project — the CLI is the
+scriptable mirror of the same query engine. For a full tour of the
+TUI's screens, key bindings, theme system, sticky defaults, follow
+mode, and clipboard yank, see **[`docs/TUI.md`](TUI.md)**.
 
 **Without this extra installed, every other CLI command keeps working**;
 only `aot tui` is gated. Running `aot tui` without the extra prints
@@ -256,8 +261,12 @@ the standard 3-line error pointing at the install command.
 pipx (replaces the existing install with the extra wired in):
 ```bash
 pipx install --force \
-  'agent-output-tracer[tui] @ git+https://github.com/itosdad/agent-output-tracer.git@v0.6.0'
+  'agent-output-tracer[tui] @ git+https://github.com/itosdad/agent-output-tracer.git'
 ```
+
+The latest tag is resolved automatically. Pin to a specific tag by
+appending `@v0.16.2` (or whatever's in
+[`CHANGELOG.md`](../CHANGELOG.md#0162--2026-05-16--theme-robustness--top-alignment--per-engine-semantic-colours)).
 
 Or inject `textual` / `watchdog` into an existing pipx install:
 ```bash

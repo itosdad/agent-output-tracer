@@ -25,6 +25,33 @@ handoff_notes:
   - 設計判断の背景・経緯は §0.5（design rationale）と §修訂履歴 を参照
 ---
 
+# ⚠ Historical baseline — Phase A–C design draft (2026-05-14)
+
+This document is the **pre-implementation design** of the recorder
+pipeline, hook contract, event schema, and CLI surface for Phase A–C.
+It is preserved as the historical record of how the project was
+scoped before code was written.
+
+For the **current state**, refer to:
+
+- [`README.md`](../README.md) — overview, screenshots, status table
+- [`docs/TUI.md`](TUI.md) — TUI guide (the primary surface)
+- [`CHANGELOG.md`](../CHANGELOG.md) — per-version diff
+
+Implementation has evolved beyond this draft. Specifically:
+
+- The engine detector (`hooks/_runner.py`) no longer keys off
+  `permission_mode` — see CHANGELOG v0.16.1 / OBSERVATIONS for why.
+- Timeline theme reads engine from events, not metadata — v0.16.2.
+- Phase D shipped in full plus TUI Phase 1–4.A on top — see status
+  table in README.
+
+This document is not deleted because the §0.5 design rationale,
+§1.2 non-goals, §2 design principles, and §9 safety guarantees are
+still load-bearing for anyone reviewing PRs or contributing.
+
+---
+
 # 0. Executive Summary
 
 ## 0.1 一言で
