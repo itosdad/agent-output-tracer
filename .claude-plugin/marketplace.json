@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "agent-output-tracer",
-      "source": "./",
+      "source": "./plugin-dist",
       "description": "Universal AI agent session forensic debugger. Replay, trace, and query agent behavior when output looks wrong."
     }
   ]

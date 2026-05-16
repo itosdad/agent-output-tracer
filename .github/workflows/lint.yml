@@ -17,3 +17,5 @@ jobs:
       - run: pip install ruff
       - run: ruff check .
       - run: ruff format --check .
+      - name: plugin-dist in sync with canonical sources
+        run: bash tools/sync_plugin_dist.sh --check

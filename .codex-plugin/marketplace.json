@@ -8,7 +8,7 @@
       "name": "agent-output-tracer",
       "source": {
         "source": "local",
-        "path": "./"
+        "path": "./plugin-dist"
       },
       "policy": {
         "installation": "AVAILABLE",

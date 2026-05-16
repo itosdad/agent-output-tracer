@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.5] — 2026-05-16 — Codex marketplace install: `plugin-dist/` distribution dir
+
+### Fixed
+
+- **Codex 0.130's plugin resolver rejected the plugin with**
+  `invalid marketplace file ...: local plugin source path must not be empty`,
+  silently skipping the install into `~/.codex/.tmp/plugins/plugins/`.
+  Root cause: Codex parses `.claude-plugin/marketplace.json` (Claude's
+  manifest, despite the namespace) and maps the string source `"./"`
+  to its internal object form `{source: "local", path: ""}`. The empty
+  path fails Codex's non-empty validator. Claude was always fine with
+  `"./"` because Claude permits the marketplace root to also be the
+  plugin root.
+
+  Architecturally this is Codex's bug — it should look at
+  `.codex-plugin/marketplace.json` for its own engine, or at minimum
+  not impose its schema on Claude's namespace file. We won't fix that
+  from our end. Instead we sidestep it by introducing a
+  `plugin-dist/` subdirectory at the repo root that holds a
+  self-contained copy of the plugin's actual footprint (`hooks/`,
+  `adapters/`, `core/`, `.claude-plugin/plugin.json`,
+  `.codex-plugin/plugin.json`). Both manifests now point to
+  `./plugin-dist`:
+
+  - `.claude-plugin/marketplace.json` → `"source": "./plugin-dist"`
+    (still a string relative path; Claude continues to work
+    unchanged)
+  - `.codex-plugin/marketplace.json` → `{source: "local", path:
+    "./plugin-dist"}` (still ignored by Codex 0.130 since it reads
+    Claude's file, but kept so a future Codex version that respects
+    engine-specific namespacing can pick it up)
+
+  The CLI / TUI side keeps importing from `hooks/`, `adapters/`,
+  `core/` at the repo root — those remain the source of truth. The
+  `plugin-dist/` copy is purely a distribution artifact for plugin
+  marketplaces.
+
+### Tooling
+
+- New `tools/sync_plugin_dist.sh` rsyncs canonical sources into
+  `plugin-dist/`. Run it after editing any of `hooks/`, `adapters/`,
+  `core/`, or either `plugin.json`. Lint CI now runs
+  `bash tools/sync_plugin_dist.sh --check` and fails the build on
+  drift, so a stale `plugin-dist/` cannot reach `main`.
+
 ## [0.16.4] — 2026-05-16 — Plugin manifest version sync (cache-invalidation release)
 
 ### Fixed

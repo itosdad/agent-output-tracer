@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-output-tracer"
-version = "0.16.4"
+version = "0.16.5"
 description = "Universal AI agent session forensic debugger. Replay, trace, and query agent behavior when output looks wrong."
 readme = "README.md"
 license = { text = "MIT" }
@@ -109,3 +109,8 @@ ignore = [
 "hooks/*" = ["UP006", "UP007", "UP017", "UP035", "UP045"]
 "adapters/*" = ["UP006", "UP007", "UP017", "UP035", "UP045"]
 "core/*" = ["UP006", "UP007", "UP017", "UP035", "UP045"]
+# `plugin-dist/` mirrors hooks/adapters/core verbatim — apply the same
+# 3.9-compat ignores there (see tools/sync_plugin_dist.sh).
+"plugin-dist/hooks/*" = ["UP006", "UP007", "UP017", "UP035", "UP045"]
+"plugin-dist/adapters/*" = ["UP006", "UP007", "UP017", "UP035", "UP045"]
+"plugin-dist/core/*" = ["UP006", "UP007", "UP017", "UP035", "UP045"]
